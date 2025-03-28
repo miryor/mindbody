@@ -116,7 +116,9 @@ export const SchedulerWidget: React.FC = () => {
   const fetchClasses = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/classes?startDate=${selectedDate}&endDate=${selectedDate}`);
+      const response = await fetch(`http://localhost:3001/api/classes?startDate=${selectedDate}&endDate=${selectedDate}`, {
+        credentials: 'include'
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch classes');
       }
@@ -158,7 +160,9 @@ export const SchedulerWidget: React.FC = () => {
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/appointments/bookableitems?startDate=${selectedDate}&endDate=${selectedDate}`);
+      const response = await fetch(`http://localhost:3001/api/appointments/bookableitems?startDate=${selectedDate}&endDate=${selectedDate}`, {
+        credentials: 'include'
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch appointments');
       }

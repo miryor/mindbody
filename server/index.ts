@@ -8,6 +8,8 @@ import { RequestHandler } from 'express';
 import path from 'path';
 import fetch, { HeadersInit } from 'node-fetch';
 import { createHash } from 'crypto';
+import geoip from 'geoip-lite';
+import { formatDateWithTimezone, parseDate } from './utils/dateUtils';
 
 dotenv.config();
 
@@ -404,6 +406,19 @@ app.post('/api/client/password-reset', async (req, res) => {
 app.get('/api/classes', async (req, res) => {
   console.log('Received request for classes');
   try {
+    const sessionId = req.cookies.sessionId;
+    
+    if (!sessionId) {
+      return res.status(401).json({ error: 'No active session' });
+    }
+
+    const session = sessions.get(sessionId);
+    
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
+
+    const tz = session.timezone;
     const { startDate, endDate } = req.query;
     
     if (!startDate || !endDate) {
@@ -411,10 +426,13 @@ app.get('/api/classes', async (req, res) => {
     }
 
     // Format dates for Mindbody API
-    const formattedStartDate = new Date(startDate as string).toISOString();
-    const formattedEndDate = new Date(endDate as string).toISOString();
+    const formattedStartDate = formatDateWithTimezone(parseDate(startDate as string, tz), tz);
+    const formattedEndDate = formatDateWithTimezone(parseDate(endDate as string, tz), tz);
 
     console.log('Fetching classes from Mindbody API with dates:', {
+      requestStartDate: startDate,
+      requestEndDate: endDate,
+      tz: tz,
       startDate: formattedStartDate,
       endDate: formattedEndDate
     });
@@ -519,6 +537,7 @@ interface Session {
   tokenType: string;
   clientInfo: any;
   expiresAt: number;
+  timezone: string;
 }
 
 const sessions = new Map<string, Session>();
@@ -534,7 +553,7 @@ const OAUTH_CONFIG = {
 // OAuth endpoints
 app.post('/oauth/callback', async (req, res) => {
   try {
-    const { code, id_token, error, error_description, state, nonce } = req.body;
+    const { code, id_token, error, error_description } = req.body;
     
     if (error) {
       console.error('OAuth error received:', { error, error_description });
@@ -545,6 +564,11 @@ app.post('/oauth/callback', async (req, res) => {
       console.error('Missing required tokens:', { hasCode: !!code, hasIdToken: !!id_token });
       return res.status(400).json({ error: 'Missing required tokens' });
     }
+
+    // Get client IP and determine timezone
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const geo = geoip.lookup(typeof ip === 'string' ? ip : '');
+    const timezone = geo?.timezone || 'UTC'; // Default to UTC if timezone cannot be determined
 
     // Exchange code for tokens
     const tokenResponse = await axios.post(
@@ -576,7 +600,7 @@ app.post('/oauth/callback', async (req, res) => {
 
     console.log('Token response:', tokenResponse.data);
 
-    // Create a new session
+    // Create a new session with timezone
     const sessionId = uuidv4();
     const session: Session = {
       id: sessionId,
@@ -586,6 +610,7 @@ app.post('/oauth/callback', async (req, res) => {
       tokenType: tokenResponse.data.token_type,
       clientInfo: null,
       expiresAt: Date.now() + (tokenResponse.data.expires_in * 1000),
+      timezone: timezone
     };
 
     try {
@@ -646,11 +671,6 @@ app.post('/oauth/callback', async (req, res) => {
   }
 });
 
-app.get('/oauth/callback', (req, res) => {
-  // Handle GET request by serving the frontend app
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
-});
-
 // Session management endpoints
 app.get('/api/oauth/session', async (req, res) => {
   try {
@@ -671,18 +691,13 @@ app.get('/api/oauth/session', async (req, res) => {
       return res.status(401).json({ error: 'Session expired' });
     }
 
-    console.log('Session data:', {
-      clientInfo: session.clientInfo,
-      hasIdToken: !!session.idToken,
-      expiresAt: new Date(session.expiresAt).toISOString()
-    });
-
     res.json({
       clientInfo: {
         ...session.clientInfo,
-        IdToken: session.idToken // Make sure we include the ID token in the response
+        IdToken: session.idToken
       },
       sessionId,
+      timezone: session.timezone
     });
   } catch (error) {
     console.error('Session retrieval error:', error);
