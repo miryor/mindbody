@@ -6,6 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 import cookieParser from 'cookie-parser';
 import { RequestHandler } from 'express';
 import path from 'path';
+import fetch, { HeadersInit } from 'node-fetch';
+import { createHash } from 'crypto';
 
 dotenv.config();
 
@@ -54,6 +56,12 @@ let tokenState = {
   accessToken: null as string | null,
   expirationTime: null as number | null,
   renewalPromise: null as Promise<string> | null,
+};
+
+// Store session types in memory
+let sessionTypes = {
+  types: [] as any[],
+  lastFetched: null as number | null,
 };
 
 // Token renewal function with proper cleanup
@@ -218,13 +226,42 @@ mindbodyApi.interceptors.response.use(
 
 // Initialize token when server starts
 console.log('Initializing server token...');
-renewToken()
-  .then(token => {
+(async () => {
+  try {
+    const token = await renewToken();
     console.log('Server token initialized successfully');
-  })
-  .catch(error => {
+    await fetchSessionTypes();
+  } catch (error) {
     console.error('Failed to initialize server token:', error);
-  });
+  }
+})();
+
+// Separate async function to fetch session types
+async function fetchSessionTypes() {
+  try {
+    console.log('Fetching session types...');
+    const response = await mindbodyApi.get('/site/sessiontypes');
+    sessionTypes.types = response.data.SessionTypes || [];
+    sessionTypes.lastFetched = Date.now();
+    console.log('Session types fetched successfully:', {
+      count: sessionTypes.types.length,
+      types: sessionTypes.types.map((type: any) => ({
+        id: type.Id,
+        name: type.Name,
+        description: type.Description
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching session types:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Mindbody API error:', {
+        status: error.response?.status,
+        message: error.response?.data?.Message,
+        data: error.response?.data
+      });
+    }
+  }
+}
 
 // API Routes with proper error handling and cleanup
 app.post('/api/client/create', async (req, res) => {
@@ -423,24 +460,37 @@ app.get('/api/classes', async (req, res) => {
   }
 });
 
-app.get('/api/appointments', async (req, res) => {
-  console.log('Received request for appointments');
+app.get('/api/appointments/bookableitems', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'startDate and endDate are required' });
-    }
+    // Format dates to ISO string format
+    const formattedStartDate = new Date(startDate as string).toISOString();
+    const formattedEndDate = new Date(endDate as string).toISOString();
+    
+    // Get session type IDs from our stored session types
+    const sessionTypeIds = sessionTypes.types.map(type => type.Id);
+    
+    console.log('Fetching appointments with dates:', {
+      startDate: formattedStartDate,
+      endDate: formattedEndDate,
+      sessionTypeIds
+    });
 
-    console.log('Fetching appointments from Mindbody API');
-    const response = await mindbodyApi.get('/appointment/appointments', {
+    const response = await mindbodyApi.get('/appointment/bookableitems', {
       params: {
-        StartDate: startDate,
-        EndDate: endDate
+        StartDate: formattedStartDate,
+        EndDate: formattedEndDate,
+        CrossRegionalLookup: true,
+        HideCanceledClasses: true,
+        SessionTypeIds: sessionTypeIds, // Use the stored session type IDs
+        StaffIds: [], // Optional: filter by staff
+        LocationIds: [], // Optional: filter by locations
+        Limit: 100 // Optional: limit number of results
       }
     });
 
-    console.log('Appointments fetched successfully');
+    console.log('Successfully fetched appointments:', response.data);
     res.json(response.data);
   } catch (error) {
     console.error('Error fetching appointments:', error);

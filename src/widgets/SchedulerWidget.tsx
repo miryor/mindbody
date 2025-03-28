@@ -38,8 +38,10 @@ interface Class {
   price: number;
 }
 
-interface Appointment {
+interface Availability {
   id: number;
+  name: string;
+  description: string;
   startDateTime: string;
   endDateTime: string;
   location: {
@@ -51,6 +53,24 @@ interface Appointment {
     firstName: string;
     lastName: string;
   };
+  price: number;
+  isAvailable: boolean;
+  sessionType: {
+    id: number;
+    name: string;
+    description: string;
+  };
+  maxCapacity: number;
+  totalBooked: number;
+  waitlistAvailable: boolean;
+  isCanceled: boolean;
+  bookingWindow: {
+    startDateTime: string;
+    endDateTime: string;
+  };
+  bookingStatus: string;
+  paymentAmount: number;
+  paymentStatus: string;
 }
 
 interface TabPanelProps {
@@ -77,25 +97,26 @@ function TabPanel(props: TabPanelProps) {
 
 export const SchedulerWidget: React.FC = () => {
   const [classes, setClasses] = useState<Class[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointments, setAppointments] = useState<Availability[]>([]);
   const [tabValue, setTabValue] = useState(0);
-  const [selectedItem, setSelectedItem] = useState<Class | Appointment | null>(null);
+  const [selectedItem, setSelectedItem] = useState<Class | Availability | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Set default dates
+  // Set default date to today
   const today = new Date();
-  const oneWeekFromNow = new Date(today);
-  oneWeekFromNow.setDate(today.getDate() + 7);
-  
-  const [startDate, setStartDate] = useState(today.toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(oneWeekFromNow.toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(today.toISOString().split('T')[0]);
+
+  // Calculate max date (7 days from today)
+  const maxDate = new Date(today);
+  maxDate.setDate(today.getDate() + 7);
+  const maxDateString = maxDate.toISOString().split('T')[0];
 
   const fetchClasses = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/classes?startDate=${startDate}&endDate=${endDate}`);
+      const response = await fetch(`http://localhost:3001/api/classes?startDate=${selectedDate}&endDate=${selectedDate}`);
       if (!response.ok) {
         throw new Error('Failed to fetch classes');
       }
@@ -137,26 +158,46 @@ export const SchedulerWidget: React.FC = () => {
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3001/api/appointments?startDate=${startDate}&endDate=${endDate}`);
+      const response = await fetch(`http://localhost:3001/api/appointments/bookableitems?startDate=${selectedDate}&endDate=${selectedDate}`);
       if (!response.ok) {
         throw new Error('Failed to fetch appointments');
       }
       const data = await response.json();
       
       // Transform the API response to match our interface
-      const transformedAppointments = (data.Appointments || []).map((apt: any) => ({
+      const transformedAppointments = (data.Availabilities || []).map((apt: any) => ({
         id: apt.Id,
+        name: apt.Name || 'Appointment',
+        description: apt.Description || '',
         startDateTime: apt.StartDateTime,
         endDateTime: apt.EndDateTime,
         location: {
-          id: apt.Location.Id,
-          name: apt.Location.Name
+          id: apt.Location?.Id || 0,
+          name: apt.Location?.Name || 'No location specified'
         },
         staff: {
-          id: apt.Staff.Id,
-          firstName: apt.Staff.Name.split(' ')[0],
-          lastName: apt.Staff.Name.split(' ')[1] || ''
-        }
+          id: apt.Staff?.Id || 0,
+          firstName: apt.Staff?.Name?.split(' ')[0] || '',
+          lastName: apt.Staff?.Name?.split(' ')[1] || ''
+        },
+        price: apt.PaymentAmount || 0,
+        isAvailable: apt.IsAvailable || false,
+        sessionType: {
+          id: apt.SessionType?.Id || 0,
+          name: apt.SessionType?.Name || 'Unknown Type',
+          description: apt.SessionType?.Description || ''
+        },
+        maxCapacity: apt.MaxCapacity || 0,
+        totalBooked: apt.TotalBooked || 0,
+        waitlistAvailable: apt.WaitlistAvailable || false,
+        isCanceled: apt.IsCanceled || false,
+        bookingWindow: {
+          startDateTime: apt.BookingWindow?.StartDateTime || '',
+          endDateTime: apt.BookingWindow?.EndDateTime || ''
+        },
+        bookingStatus: apt.BookingStatus || '',
+        paymentAmount: apt.PaymentAmount || 0,
+        paymentStatus: apt.PaymentStatus || ''
       }));
       
       setAppointments(transformedAppointments);
@@ -174,44 +215,29 @@ export const SchedulerWidget: React.FC = () => {
     } else {
       fetchAppointments();
     }
-  }, [startDate, endDate, tabValue]);
+  }, [selectedDate, tabValue]);
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
-  const handleBook = (item: Class | Appointment) => {
+  const handleBook = (item: Class | Availability) => {
     setSelectedItem(item);
     setOpenDialog(true);
   };
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
 
   return (
     <div className="scheduler-widget">
       <div className="date-filters">
         <div className="date-field">
-          <label htmlFor="startDate">Start Date:</label>
+          <label htmlFor="selectedDate">Select Date:</label>
           <input
             type="date"
-            id="startDate"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-        </div>
-        <div className="date-field">
-          <label htmlFor="endDate">End Date:</label>
-          <input
-            type="date"
-            id="endDate"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            id="selectedDate"
+            value={selectedDate}
+            min={today.toISOString().split('T')[0]}
+            max={maxDateString}
+            onChange={(e) => setSelectedDate(e.target.value)}
           />
         </div>
       </div>
@@ -224,70 +250,105 @@ export const SchedulerWidget: React.FC = () => {
       </Box>
 
       <TabPanel value={tabValue} index={0}>
-        <Grid container spacing={3}>
-          {classes.map((cls) => (
-            <Grid item xs={12} sm={6} md={4} key={cls.id}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6">{cls.name}</Typography>
-                  <Typography color="textSecondary">
-                    {format(new Date(cls.startDateTime), 'PPp')}
-                  </Typography>
-                  <Typography>
-                    Instructor: {cls.instructor.firstName} {cls.instructor.lastName}
-                  </Typography>
-                  <Typography>
-                    Location: {cls.location.name}
-                  </Typography>
-                  <Typography>
-                    Price: ${cls.price}
-                  </Typography>
-                  <Typography>
-                    Spots: {cls.totalBooked}/{cls.maxCapacity}
-                  </Typography>
-                </CardContent>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => handleBook(cls)}
-                  disabled={cls.totalBooked >= cls.maxCapacity}
-                >
-                  Book Now
-                </Button>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        {loading ? (
+          <div>Loading classes...</div>
+        ) : error ? (
+          <div>Error: {error}</div>
+        ) : (
+          <Grid container spacing={3}>
+            {classes.map((cls) => (
+              <Grid item xs={12} sm={6} md={4} key={cls.id}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6">{cls.name}</Typography>
+                    <Typography color="textSecondary">
+                      {format(new Date(cls.startDateTime), 'PPp')}
+                    </Typography>
+                    <Typography>
+                      Instructor: {cls.instructor.firstName} {cls.instructor.lastName}
+                    </Typography>
+                    <Typography>
+                      Location: {cls.location.name}
+                    </Typography>
+                    <Typography>
+                      Price: ${cls.price}
+                    </Typography>
+                    <Typography>
+                      Spots: {cls.totalBooked}/{cls.maxCapacity}
+                    </Typography>
+                  </CardContent>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => handleBook(cls)}
+                    disabled={cls.totalBooked >= cls.maxCapacity}
+                  >
+                    Book Now
+                  </Button>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
-        <Grid container spacing={3}>
-          {appointments.map((apt) => (
-            <Grid item xs={12} sm={6} md={4} key={apt.id}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6">Appointment</Typography>
-                  <Typography color="textSecondary">
-                    {format(new Date(apt.startDateTime), 'PPp')}
-                  </Typography>
-                  <Typography>
-                    Staff: {apt.staff.firstName} {apt.staff.lastName}
-                  </Typography>
-                  <Typography>
-                    Location: {apt.location.name}
-                  </Typography>
-                </CardContent>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => handleBook(apt)}
-                >
-                  Book Now
-                </Button>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        {loading ? (
+          <div>Loading appointments...</div>
+        ) : error ? (
+          <div>Error: {error}</div>
+        ) : (
+          <Grid container spacing={3}>
+            {appointments.map((apt) => (
+              <Grid item xs={12} sm={6} md={4} key={apt.id}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6">{apt.name}</Typography>
+                    <Typography color="textSecondary">
+                      {format(new Date(apt.startDateTime), 'PPp')}
+                    </Typography>
+                    <Typography>
+                      Type: {apt.sessionType.name}
+                    </Typography>
+                    <Typography>
+                      Staff: {apt.staff.firstName} {apt.staff.lastName}
+                    </Typography>
+                    <Typography>
+                      Location: {apt.location.name}
+                    </Typography>
+                    <Typography>
+                      Price: ${apt.paymentAmount}
+                    </Typography>
+                    <Typography>
+                      Status: {apt.bookingStatus}
+                    </Typography>
+                    <Typography>
+                      Spots: {apt.totalBooked}/{apt.maxCapacity}
+                    </Typography>
+                    {apt.waitlistAvailable && (
+                      <Typography color="primary">
+                        Waitlist Available
+                      </Typography>
+                    )}
+                    {apt.isCanceled && (
+                      <Typography color="error">
+                        Canceled
+                      </Typography>
+                    )}
+                  </CardContent>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => handleBook(apt)}
+                    disabled={!apt.isAvailable || apt.isCanceled}
+                  >
+                    Book Now
+                  </Button>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </TabPanel>
 
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
