@@ -373,15 +373,37 @@ app.get('/api/classes', async (req, res) => {
       return res.status(400).json({ error: 'startDate and endDate are required' });
     }
 
-    console.log('Fetching classes from Mindbody API');
+    // Format dates for Mindbody API
+    const formattedStartDate = new Date(startDate as string).toISOString();
+    const formattedEndDate = new Date(endDate as string).toISOString();
+
+    console.log('Fetching classes from Mindbody API with dates:', {
+      startDate: formattedStartDate,
+      endDate: formattedEndDate
+    });
+
     const response = await mindbodyApi.get('/class/classes', {
       params: {
-        StartDate: startDate,
-        EndDate: endDate
+        StartDateTime: formattedStartDate,
+        EndDateTime: formattedEndDate,
+        CrossRegionalLookup: true,
+        HideCanceledClasses: false,
+        HideRelatedPrograms: false,
+        IncludeLocation: true,
+        IncludeSemesterId: true,
+        IncludeWaitlistAvailable: true,
+        Limit: 100,
+        Offset: 0,
+        ShowPublicOnly: false,
+        CrossLocationLookup: true
       }
     });
 
-    console.log('Classes fetched successfully');
+    console.log('Classes fetched successfully:', {
+      count: response.data.Classes?.length || 0,
+      totalResults: response.data.TotalResults || 0
+    });
+
     res.json(response.data);
   } catch (error) {
     console.error('Error fetching classes:', error);
