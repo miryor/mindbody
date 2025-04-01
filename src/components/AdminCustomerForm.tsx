@@ -91,7 +91,7 @@ export const AdminCustomerForm: React.FC = () => {
       console.log('%cAttempting to create client...', 'color: blue');
 
       // Call our server API to create the client
-      const response = await fetch('http://localhost:3001/api/client/create', {
+      const response = await fetch('http://localhost:3001/api/v1/client/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

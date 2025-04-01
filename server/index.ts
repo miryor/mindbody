@@ -31,6 +31,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Create a base router with the /api/v1 prefix
+const apiRouter = express.Router();
+
 // Initialize Mindbody API with configuration
 initializeMindbody({
   apiKey: process.env.MINDBODY_API_KEY || '',
@@ -153,7 +156,7 @@ console.log('Initializing server token...');
 })();
 
 // API Routes
-app.post('/api/client/create', async (req, res) => {
+apiRouter.post('/client/create', async (req, res) => {
   console.log('Received client creation request:', {
     firstName: req.body.firstName,
     lastName: req.body.lastName,
@@ -231,7 +234,7 @@ app.post('/api/client/create', async (req, res) => {
   }
 });
 
-app.post('/api/client/password-reset', async (req, res) => {
+apiRouter.post('/client/password-reset', async (req, res) => {
   console.log('Received password reset request:', {
     email: req.body.email,
     firstName: req.body.firstName,
@@ -290,7 +293,7 @@ app.post('/api/client/password-reset', async (req, res) => {
   }
 });
 
-app.get('/api/classes', async (req, res) => {
+apiRouter.get('/classes', async (req, res) => {
   console.log('Received request for classes');
   try {
     const sessionId = req.cookies.sessionId;    
@@ -362,9 +365,9 @@ app.get('/api/classes', async (req, res) => {
   }
 });
 
-app.get('/api/appointments/bookableitems', async (req, res) => {
+apiRouter.get('/appointments/bookableitems', async (req, res) => {
   try {
-    const sessionId = req.cookies.sessionId;    
+    const sessionId = req.cookies.sessionId;
     if (!sessionId) {
       return res.status(401).json({ error: 'No active session' });
     }
@@ -376,33 +379,44 @@ app.get('/api/appointments/bookableitems', async (req, res) => {
     const tz = session.timezone;
     const { startDate, endDate } = req.query;
     
-    // Format dates to ISO string format
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate and endDate are required' });
+    }
+
+    // Format dates for Mindbody API
     const formattedStartDate = formatDateWithTimezone(parseDate(startDate as string, tz), tz);
     const formattedEndDate = formatDateWithTimezone(parseDate(endDate as string, tz), tz);
-    
-    // Get session type IDs from our stored session types
-    const sessionTypeIds = sessionTypes.types.map(type => type.Id);
-    
-    console.log('Fetching appointments with dates:', {
+
+    console.log('Fetching appointments from Mindbody API with dates:', {
+      requestStartDate: startDate,
+      requestEndDate: endDate,
+      tz: tz,
       startDate: formattedStartDate,
-      endDate: formattedEndDate,
-      sessionTypeIds
+      endDate: formattedEndDate
     });
 
     const response = await mindbodyApi.get('/appointment/bookableitems', {
       params: {
-        StartDate: formattedStartDate,
-        EndDate: formattedEndDate,
+        StartDateTime: formattedStartDate,
+        EndDateTime: formattedEndDate,
         CrossRegionalLookup: true,
-        HideCanceledClasses: true,
-        SessionTypeIds: sessionTypeIds, // Use the stored session type IDs
-        StaffIds: [], // Optional: filter by staff
-        LocationIds: [], // Optional: filter by locations
-        Limit: 100 // Optional: limit number of results
+        HideCanceledClasses: false,
+        HideRelatedPrograms: false,
+        IncludeLocation: true,
+        IncludeSemesterId: true,
+        IncludeWaitlistAvailable: true,
+        Limit: 100,
+        Offset: 0,
+        ShowPublicOnly: false,
+        CrossLocationLookup: true
       }
     });
 
-    console.log('Successfully fetched appointments:', response.data);
+    console.log('Appointments fetched successfully:', {
+      count: response.data.BookableItems?.length || 0,
+      totalResults: response.data.TotalResults || 0
+    });
+
     res.json(response.data);
   } catch (error) {
     console.error('Error fetching appointments:', error);
@@ -422,8 +436,11 @@ app.get('/api/appointments/bookableitems', async (req, res) => {
   }
 });
 
-// Mount OAuth routes
-app.use('/oauth', oauthRouter);
+// Mount OAuth routes under the base router
+apiRouter.use('/oauth', oauthRouter);
+
+// Mount the base router under /api/v1
+app.use('/api/v1', apiRouter);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

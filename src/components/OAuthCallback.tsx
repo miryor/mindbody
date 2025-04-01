@@ -9,7 +9,7 @@ export const OAuthCallback: React.FC = () => {
     const handleCallback = async () => {
       try {
         // Get session info which includes client info
-        const response = await fetch('http://localhost:3001/oauth/session', {
+        const response = await fetch('http://localhost:3001/api/v1/oauth/session', {
           credentials: 'include'
         });
 

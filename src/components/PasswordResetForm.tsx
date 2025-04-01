@@ -15,7 +15,7 @@ export const PasswordResetForm: React.FC = () => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:3001/api/client/password-reset', {
+      const response = await fetch('http://localhost:3001/api/v1/client/password-reset', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
