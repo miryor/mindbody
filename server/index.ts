@@ -10,6 +10,9 @@ import fetch, { HeadersInit } from 'node-fetch';
 import { createHash } from 'crypto';
 import geoip from 'geoip-lite';
 import { formatDateWithTimezone, parseDate } from './utils/dateUtils';
+import { initializeMindbody, mindbodyApi, renewToken } from './services/mindbodyApi';
+import { initializeOAuth, default as oauthRouter } from './routes/oauth';
+import { sessions } from './services/sessionStore';
 
 dotenv.config();
 
@@ -28,37 +31,24 @@ app.use((req, res, next) => {
   next();
 });
 
-const API_KEY = process.env.MINDBODY_API_KEY;
-const SITE_ID = process.env.MINDBODY_SITE_ID;
-const API_URL = process.env.MINDBODY_API_URL;
-const USERNAME = process.env.MINDBODY_USERNAME;
-const PASSWORD = process.env.MINDBODY_PASSWORD;
-
-console.log('Server Configuration:', {
-  hasApiKey: !!API_KEY,
-  hasSiteId: !!SITE_ID,
-  hasUsername: !!USERNAME,
-  hasPassword: !!PASSWORD,
-  apiUrl: API_URL
+// Initialize Mindbody API with configuration
+initializeMindbody({
+  apiKey: process.env.MINDBODY_API_KEY || '',
+  siteId: process.env.MINDBODY_SITE_ID || '',
+  apiUrl: process.env.MINDBODY_API_URL || '',
+  username: process.env.MINDBODY_USERNAME || '',
+  password: process.env.MINDBODY_PASSWORD || ''
 });
 
-// Create axios instance for Mindbody API with timeout
-const mindbodyApi = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'API-Key': API_KEY,
-    'SiteId': SITE_ID,
-    'Content-Type': 'application/json',
-  },
-  timeout: 10000, // 10 second timeout
+// Initialize OAuth with configuration
+initializeOAuth({
+  clientId: process.env.MINDBODY_CLIENT_ID || '',
+  clientSecret: process.env.MINDBODY_CLIENT_SECRET || '',
+  tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
+  redirectUri: process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth/callback',
+  siteId: process.env.MINDBODY_SITE_ID || '',
+  apiKey: process.env.MINDBODY_API_KEY || ''
 });
-
-// Token management
-let tokenState = {
-  accessToken: null as string | null,
-  expirationTime: null as number | null,
-  renewalPromise: null as Promise<string> | null,
-};
 
 // Store session types in memory
 let sessionTypes = {
@@ -66,177 +56,11 @@ let sessionTypes = {
   lastFetched: null as number | null,
 };
 
-// Token renewal function with proper cleanup
-async function renewToken(): Promise<string> {
-  console.log('Token renewal requested');
-  
-  // If we have a valid token that's not expired, return it
-  if (tokenState.accessToken && tokenState.expirationTime && Date.now() < tokenState.expirationTime) {
-    console.log('Using existing valid token');
-    return tokenState.accessToken;
-  }
-
-  // If renewal is already in progress, wait for it
-  if (tokenState.renewalPromise !== null) {
-    console.log('Token renewal already in progress, waiting for result...');
-    return tokenState.renewalPromise;
-  }
-
-  console.log('Starting new token renewal process');
-  
-  // Create new renewal promise
-  const renewalPromise = (async () => {
-    console.log('Sending token renewal request to Mindbody');
-    console.log('Request configuration:', {
-      url: '/usertoken/issue',
-      method: 'POST',
-      data: {
-        username: USERNAME,
-        password: PASSWORD,
-      },
-      headers: mindbodyApi.defaults.headers,
-      baseURL: mindbodyApi.defaults.baseURL,
-      fullUrl: `${mindbodyApi.defaults.baseURL}/usertoken/issue`,
-      allHeaders: {
-        ...mindbodyApi.defaults.headers,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    try {
-      // Log the exact request being sent
-      console.log('Making request with:', {
-        url: `${mindbodyApi.defaults.baseURL}/usertoken/issue`,
-        method: 'POST',
-        headers: {
-          'API-Key': API_KEY,
-          'SiteId': SITE_ID,
-          'Content-Type': 'application/json'
-        },
-        data: {
-          username: USERNAME,
-          password: PASSWORD
-        }
-      });
-
-      const response = await axios.post(
-        `${API_URL}/usertoken/issue`,
-        JSON.stringify({
-          username: USERNAME,
-          password: PASSWORD
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'API-Key': API_KEY,
-            'SiteId': SITE_ID
-          }
-        }
-      );
-
-      console.log('Token renewal response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data
-      });
-
-      const newToken = response.data.AccessToken;
-      tokenState.accessToken = newToken;
-      // Convert the Expires string to a timestamp
-      tokenState.expirationTime = new Date(response.data.Expires).getTime();
-      console.log('Token renewal successful, expires at:', response.data.Expires);
-      return newToken;
-    } catch (error) {
-      console.error('Token renewal request failed:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        isAxiosError: axios.isAxiosError(error),
-        config: axios.isAxiosError(error) ? {
-          url: error.config?.url,
-          method: error.config?.method,
-          baseURL: error.config?.baseURL,
-          headers: error.config?.headers,
-          timeout: error.config?.timeout
-        } : null,
-        response: axios.isAxiosError(error) ? {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data
-        } : null,
-        request: axios.isAxiosError(error) ? error.request : null
-      });
-      // Clear the token state on failure
-      tokenState.accessToken = null;
-      tokenState.expirationTime = null;
-      throw error;
-    } finally {
-      // Clear the renewal promise
-      tokenState.renewalPromise = null;
-      console.log('Token renewal process completed');
-    }
-  })();
-
-  // Store the promise in state
-  tokenState.renewalPromise = renewalPromise;
-
-  // Return the local promise, not the state variable
-  return renewalPromise;
-}
-
-// Request interceptor with proper cleanup
-mindbodyApi.interceptors.request.use(async (config) => {
-  console.log(`[${new Date().toISOString()}] Making request to:`, config.url);
-  
-  // Check if token is expired or missing
-  if (!tokenState.accessToken || !tokenState.expirationTime || Date.now() >= tokenState.expirationTime) {
-    console.log('Token expired or missing, renewing...');
-    try {
-      const token = await renewToken();
-      config.headers['Authorization'] = `Bearer ${token}`;
-      console.log('Added new authorization header');
-    } catch (error) {
-      console.error('Failed to renew token:', error);
-      return Promise.reject(error);
-    }
-  } else {
-    config.headers['Authorization'] = `Bearer ${tokenState.accessToken}`;
-    console.log('Using existing authorization header');
-  }
-  
-  return config;
-});
-
-// Response interceptor with error handling
-mindbodyApi.interceptors.response.use(
-  response => {
-    console.log(`[${new Date().toISOString()}] Response received from:`, response.config.url);
-    return response;
-  },
-  async error => {
-    console.error(`[${new Date().toISOString()}] Request failed:`, {
-      url: error.config?.url,
-      status: error.response?.status,
-      message: error.message
-    });
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      console.log('Authentication error, clearing token');
-      tokenState.accessToken = null;
-      tokenState.expirationTime = null;
-    }
-    return Promise.reject(error);
-  }
-);
-
-// Initialize token when server starts
-console.log('Initializing server token...');
-(async () => {
-  try {
-    const token = await renewToken();
-    console.log('Server token initialized successfully');
-    await fetchSessionTypes();
-  } catch (error) {
-    console.error('Failed to initialize server token:', error);
-  }
-})();
+// Store locations in memory
+let locations = {
+  data: [] as any[],
+  lastFetched: null as number | null,
+};
 
 // Separate async function to fetch session types
 async function fetchSessionTypes() {
@@ -265,7 +89,70 @@ async function fetchSessionTypes() {
   }
 }
 
-// API Routes with proper error handling and cleanup
+// Function to fetch locations
+async function fetchLocations(): Promise<void> {
+  try {
+    console.log('Fetching locations...');
+    const response = await mindbodyApi.get('/site/locations');
+    locations.data = response.data.Locations || [];
+    locations.lastFetched = Date.now();
+
+    // Find first location with valid coordinates
+    const locationWithCoords = locations.data.find(loc => 
+      loc.Latitude !== undefined && 
+      loc.Longitude !== undefined && 
+      loc.Latitude !== null && 
+      loc.Longitude !== null
+    );
+
+    if (locationWithCoords) {
+      const geo = geoip.lookup(locationWithCoords.Latitude + ',' + locationWithCoords.Longitude);
+      console.log('Location timezone lookup:', {
+        location: locationWithCoords.Name,
+        latitude: locationWithCoords.Latitude,
+        longitude: locationWithCoords.Longitude,
+        timezone: geo?.timezone || 'UTC'
+      });
+    }
+
+    console.log(`Fetched ${locations.data.length} locations:`, locations.data.map(loc => ({
+      id: loc.Id,
+      name: loc.Name,
+      address: loc.Address,
+      city: loc.City,
+      state: loc.State,
+      postalCode: loc.PostalCode,
+      phone: loc.Phone,
+      timezone: loc.Timezone,
+      latitude: loc.Latitude,
+      longitude: loc.Longitude
+    })));
+  } catch (error) {
+    console.error('Error fetching locations:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        headers: error.response?.headers
+      });
+    }
+  }
+}
+
+// Initialize token when server starts
+console.log('Initializing server token...');
+(async () => {
+  try {
+    const token = await renewToken();
+    console.log('Server token initialized successfully');
+    await fetchSessionTypes();
+    await fetchLocations();
+  } catch (error) {
+    console.error('Failed to initialize server token:', error);
+  }
+})();
+
+// API Routes
 app.post('/api/client/create', async (req, res) => {
   console.log('Received client creation request:', {
     firstName: req.body.firstName,
@@ -406,14 +293,11 @@ app.post('/api/client/password-reset', async (req, res) => {
 app.get('/api/classes', async (req, res) => {
   console.log('Received request for classes');
   try {
-    const sessionId = req.cookies.sessionId;
-    
+    const sessionId = req.cookies.sessionId;    
     if (!sessionId) {
       return res.status(401).json({ error: 'No active session' });
     }
-
     const session = sessions.get(sessionId);
-    
     if (!session) {
       return res.status(401).json({ error: 'Invalid session' });
     }
@@ -480,11 +364,21 @@ app.get('/api/classes', async (req, res) => {
 
 app.get('/api/appointments/bookableitems', async (req, res) => {
   try {
+    const sessionId = req.cookies.sessionId;    
+    if (!sessionId) {
+      return res.status(401).json({ error: 'No active session' });
+    }
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
+
+    const tz = session.timezone;
     const { startDate, endDate } = req.query;
     
     // Format dates to ISO string format
-    const formattedStartDate = new Date(startDate as string).toISOString();
-    const formattedEndDate = new Date(endDate as string).toISOString();
+    const formattedStartDate = formatDateWithTimezone(parseDate(startDate as string, tz), tz);
+    const formattedEndDate = formatDateWithTimezone(parseDate(endDate as string, tz), tz);
     
     // Get session type IDs from our stored session types
     const sessionTypeIds = sessionTypes.types.map(type => type.Id);
@@ -528,205 +422,8 @@ app.get('/api/appointments/bookableitems', async (req, res) => {
   }
 });
 
-// Session store
-interface Session {
-  id: string;
-  accessToken: string;
-  idToken: string;
-  refreshToken: string | null;
-  tokenType: string;
-  clientInfo: any;
-  expiresAt: number;
-  timezone: string;
-}
-
-const sessions = new Map<string, Session>();
-
-// OAuth configuration
-const OAUTH_CONFIG = {
-  clientId: process.env.MINDBODY_CLIENT_ID,
-  clientSecret: process.env.MINDBODY_CLIENT_SECRET,
-  tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
-  redirectUri: process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth/callback',
-};
-
-// OAuth endpoints
-app.post('/oauth/callback', async (req, res) => {
-  try {
-    const { code, id_token, error, error_description } = req.body;
-    
-    if (error) {
-      console.error('OAuth error received:', { error, error_description });
-      return res.status(400).json({ error: error_description || error });
-    }
-
-    if (!code || !id_token) {
-      console.error('Missing required tokens:', { hasCode: !!code, hasIdToken: !!id_token });
-      return res.status(400).json({ error: 'Missing required tokens' });
-    }
-
-    // Get client IP and determine timezone
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const geo = geoip.lookup(typeof ip === 'string' ? ip : '');
-    const timezone = geo?.timezone || 'UTC'; // Default to UTC if timezone cannot be determined
-
-    // Exchange code for tokens
-    const tokenResponse = await axios.post(
-      OAUTH_CONFIG.tokenUrl,
-      new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: OAUTH_CONFIG.clientId || '',
-        client_secret: OAUTH_CONFIG.clientSecret || '',
-        code: code || '',
-        redirect_uri: OAUTH_CONFIG.redirectUri,
-        subscriberId: SITE_ID || '',
-        scope: [
-          'email',
-          'profile',
-          'openid',
-          'offline_access',
-          'Platform.Contacts.Api.Write',
-          'Platform.Contacts.Api.Read',
-          'Platform.Accounts.Api.Read',
-          'Mindbody.Api.Public.v6'
-        ].join(' '),
-      }).toString(),
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-      }
-    );
-
-    console.log('Token response:', tokenResponse.data);
-
-    // Create a new session with timezone
-    const sessionId = uuidv4();
-    const session: Session = {
-      id: sessionId,
-      accessToken: tokenResponse.data.access_token,
-      idToken: tokenResponse.data.id_token,
-      refreshToken: tokenResponse.data.refresh_token || null,
-      tokenType: tokenResponse.data.token_type,
-      clientInfo: null,
-      expiresAt: Date.now() + (tokenResponse.data.expires_in * 1000),
-      timezone: timezone
-    };
-
-    try {
-      // Fetch client info
-      /*const clientResponse = await mindbodyApi.get('/client/clientcompleteinfo', {
-        headers: {
-          'Content-Type': 'application/json',
-          'API-Key': API_KEY,
-          'SiteId': SITE_ID,
-          'consumer-identity-token': session.accessToken
-        },
-      });
-      session.clientInfo = clientResponse.data;*/
-
-      const clientResponse = await axios.get('https://api.mindbodyonline.com/platform/accounts/v1/me', {
-        headers: {
-          'API-Key': API_KEY,
-          'Authorization': `Bearer ${session.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      session.clientInfo = clientResponse.data;
-      console.log('Client info:', session.clientInfo);
-    } catch (error) {
-      console.error('Client info fetch error:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        response: axios.isAxiosError(error) ? {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: JSON.stringify(error.response?.data, null, 2),
-          headers: error.response?.headers
-        } : null,
-        config: axios.isAxiosError(error) ? {
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers
-        } : null
-      });
-      // Clean up the session since we couldn't get client info
-      return res.status(401).json({ error: 'Failed to fetch client information' });
-    }
-
-    sessions.set(sessionId, session);
-
-    // Set session cookie
-    res.cookie('sessionId', sessionId, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: tokenResponse.data.expires_in * 1000,
-    });
-
-    // Redirect to the frontend main page
-    res.redirect('http://localhost:3000');
-  } catch (error) {
-    console.error('OAuth token exchange error:', error);
-    res.status(500).json({ error: 'Failed to exchange authorization code' });
-  }
-});
-
-// Session management endpoints
-app.get('/api/oauth/session', async (req, res) => {
-  try {
-    const sessionId = req.cookies.sessionId;
-    
-    if (!sessionId) {
-      return res.status(401).json({ error: 'No active session' });
-    }
-
-    const session = sessions.get(sessionId);
-    
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
-    }
-
-    if (Date.now() > session.expiresAt) {
-      sessions.delete(sessionId);
-      return res.status(401).json({ error: 'Session expired' });
-    }
-
-    res.json({
-      clientInfo: {
-        ...session.clientInfo,
-        IdToken: session.idToken
-      },
-      sessionId,
-      timezone: session.timezone
-    });
-  } catch (error) {
-    console.error('Session retrieval error:', error);
-    res.status(500).json({ error: 'Failed to retrieve session' });
-  }
-});
-
-// Add new endpoint to handle the endsession callback
-app.get('/oauth/logout-callback', (req, res) => {
-  console.log('Received endsession callback');
-  const sessionId = req.cookies.sessionId;
-  
-  if (sessionId) {
-    console.log('Found session ID:', sessionId);
-    const session = sessions.get(sessionId);
-    if (session) {
-      console.log('Found active session, cleaning up');
-      // Clean up our local session
-      sessions.delete(sessionId);
-      console.log('Removed session from storage');
-      res.clearCookie('sessionId');
-      console.log('Cleared session cookie');
-    }
-  }
-  
-  // Redirect to frontend
-  console.log('Redirecting to frontend');
-  res.redirect('http://localhost:3000');
-});
+// Mount OAuth routes
+app.use('/oauth', oauthRouter);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

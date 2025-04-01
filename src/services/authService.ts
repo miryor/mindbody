@@ -57,7 +57,7 @@ class AuthService {
 
   async checkSession(): Promise<boolean> {
     try {
-      const response = await fetch('http://localhost:3001/api/oauth/session', {
+      const response = await fetch('http://localhost:3001/oauth/session', {
         credentials: 'include',
       });
 
