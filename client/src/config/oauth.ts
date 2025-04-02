@@ -1,7 +1,7 @@
 export const OAUTH_CONFIG = {
   clientId: import.meta.env.VITE_MINDBODY_CLIENT_ID,
-  authorizeUrl: 'https://signin.mindbodyonline.com/connect/authorize',
-  tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
+  authorizeUrl: import.meta.env.VITE_MINDBODY_API_AUTHORIZE_URL,
+  tokenUrl: import.meta.env.VITE_MINDBODY_API_TOKEN_URL,
   // This must match exactly what is registered in the Mindbody Partner Portal
   redirectUri: import.meta.env.VITE_OAUTH_REDIRECT_URI,
   // Update scopes to match Mindbody's requirements

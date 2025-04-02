@@ -57,9 +57,9 @@ export const App: React.FC = () => {
       console.log('No ID token found in clientInfo');
       return '#';
     }
-    const endsessionUrl = new URL('https://signin.mindbodyonline.com/connect/endsession');
+    const endsessionUrl = new URL(import.meta.env.VITE_MINDBODY_API_ENDSESSION_URL);
     endsessionUrl.searchParams.append('id_token_hint', clientInfo.IdToken);
-    endsessionUrl.searchParams.append('post_logout_redirect_uri', 'https://redirectmeto.com/http://localhost:3001/api/v1/oauth/logout-callback');
+    endsessionUrl.searchParams.append('post_logout_redirect_uri', import.meta.env.VITE_OAUTH_LOGOUT_REDIRECT_URI);
     const url = endsessionUrl.toString();
     console.log('Generated logout URL:', url);
     return url;

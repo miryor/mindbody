@@ -55,8 +55,11 @@ The client communicates with the server API at `http://localhost:3001/api/v1/`. 
 
 The following environment variables are used:
 
-- `VITE_MINDBODY_API_KEY` - Mindbody API key
 - `VITE_MINDBODY_SITE_ID` - Mindbody site ID
 - `VITE_MINDBODY_API_URL` - Mindbody API URL
+- `VITE_MINDBODY_API_AUTHORIZE_URL` - Mindbody Authorize URL
+- `VITE_MINDBODY_API_TOKEN_URL` - Mindbody Token URL
 - `VITE_MINDBODY_CLIENT_ID` - OAuth client ID
 - `VITE_OAUTH_REDIRECT_URI` - OAuth redirect URI 
+- `VITE_MINDBODY_API_ENDSESSION_URL` - Mindbody endsession URL
+- `VITE_OAUTH_LOGOUT_REDIRECT_URI` - OAuth logout redirect URI
