@@ -547,11 +547,11 @@ const OAUTH_CONFIG = {
   clientId: process.env.MINDBODY_CLIENT_ID,
   clientSecret: process.env.MINDBODY_CLIENT_SECRET,
   tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
-  redirectUri: process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth/callback',
+  redirectUri: process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/api/v1/oauth/callback',
 };
 
 // OAuth endpoints
-app.post('/oauth/callback', async (req, res) => {
+app.post('/api/v1/oauth/callback', async (req, res) => {
   try {
     const { code, id_token, error, error_description } = req.body;
     
@@ -706,7 +706,7 @@ app.get('/api/oauth/session', async (req, res) => {
 });
 
 // Add new endpoint to handle the endsession callback
-app.get('/oauth/logout-callback', (req, res) => {
+app.get('/api/v1/oauth/logout-callback', (req, res) => {
   console.log('Received endsession callback');
   const sessionId = req.cookies.sessionId;
   
