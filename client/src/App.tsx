@@ -7,6 +7,7 @@ import { OAuthLogin } from './components/OAuthLogin';
 import { AdminCustomerForm } from './components/AdminCustomerForm';
 import { PasswordResetForm } from './components/PasswordResetForm';
 import { authService } from './services/authService';
+import { Box, Container, Typography } from '@mui/material';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -59,7 +60,7 @@ export const App: React.FC = () => {
     }
     const endsessionUrl = new URL('https://signin.mindbodyonline.com/connect/endsession');
     endsessionUrl.searchParams.append('id_token_hint', clientInfo.IdToken);
-    endsessionUrl.searchParams.append('post_logout_redirect_uri', 'https://redirectmeto.com/http://localhost:3001/oauth/logout-callback');
+    endsessionUrl.searchParams.append('post_logout_redirect_uri', 'https://redirectmeto.com/http://localhost:3001/api/v1/oauth/logout-callback');
     const url = endsessionUrl.toString();
     console.log('Generated logout URL:', url);
     return url;
@@ -154,4 +155,4 @@ export const App: React.FC = () => {
       </div>
     </BrowserRouter>
   );
-}; 
+};

@@ -1,25 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Container,
-  Typography,
-  Card,
-  CardContent,
-  CardMedia,
-  Grid,
+import React, { useEffect, useState } from 'react';
+import { 
+  Grid, 
+  Card, 
+  CardContent, 
+  CardMedia, 
+  Typography, 
   Button,
-  TextField,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  SelectChangeEvent,
+  TextField,
+  Box,
+  Container
 } from '@mui/material';
-import { mindbodyService, Product } from '../services/mindbodyApi';
+
+interface Product {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  imageUrl?: string;
+  inventoryCount: number;
+}
 
 interface RetailWidgetProps {
   showGiftCards?: boolean;
@@ -27,27 +30,50 @@ interface RetailWidgetProps {
 
 export const RetailWidget: React.FC<RetailWidgetProps> = ({ showGiftCards = false }) => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [openDialog, setOpenDialog] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [giftCardAmount, setGiftCardAmount] = useState('');
-  const [openDialog, setOpenDialog] = useState(false);
+
+  const fetchProducts = async () => {
+    if (showGiftCards) return; // Don't fetch products for gift cards view
+    
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:3001/api/v1/products', {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch products');
+      }
+      const data = await response.json();
+      
+      // Transform the API response to match our interface
+      const transformedProducts = (data.Products || []).map((product: any) => ({
+        id: product.Id,
+        name: product.Name,
+        description: product.Description,
+        price: product.Price,
+        imageUrl: product.ImageUrl,
+        inventoryCount: product.InventoryCount
+      }));
+      
+      setProducts(transformedProducts);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch products');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!showGiftCards) {
-      const fetchProducts = async () => {
-        try {
-          const productsData = await mindbodyService.getProducts();
-          setProducts(productsData);
-        } catch (error) {
-          console.error('Error fetching products:', error);
-        }
-      };
-
-      fetchProducts();
-    }
+    fetchProducts();
   }, [showGiftCards]);
 
-  const handleProductPurchase = (product: Product) => {
+  const handlePurchase = (product: Product) => {
     setSelectedProduct(product);
     setOpenDialog(true);
   };
@@ -59,33 +85,49 @@ export const RetailWidget: React.FC<RetailWidgetProps> = ({ showGiftCards = fals
   const handleConfirmPurchase = async () => {
     try {
       if (showGiftCards) {
-        await mindbodyService.purchaseGiftCard(
-          parseFloat(giftCardAmount)
-        );
+        const response = await fetch('http://localhost:3001/api/v1/products/giftcard', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            amount: parseFloat(giftCardAmount)
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to purchase gift card');
+        }
       } else if (selectedProduct) {
-        await mindbodyService.purchaseProduct(
-          selectedProduct.id,
-          quantity
-        );
+        const response = await fetch('http://localhost:3001/api/v1/products/purchase', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            productId: selectedProduct.id,
+            quantity: quantity
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to purchase product');
+        }
+
+        // Refresh products after purchase
+        await fetchProducts();
       }
       setOpenDialog(false);
-      // Refresh products if not showing gift cards
-      if (!showGiftCards) {
-        const productsData = await mindbodyService.getProducts();
-        setProducts(productsData);
-      }
-    } catch (error) {
-      console.error('Error making purchase:', error);
+    } catch (err) {
+      console.error('Error purchasing:', err);
+      setError(err instanceof Error ? err.message : 'Failed to purchase');
     }
   };
 
-  const handleGiftCardAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGiftCardAmount(e.target.value);
-  };
-
-  const handleQuantityChange = (e: SelectChangeEvent<number>) => {
-    setQuantity(Number(e.target.value));
-  };
+  if (loading && !showGiftCards) return <div>Loading products...</div>;
+  if (error) return <div>Error: {error}</div>;
 
   return (
     <Container maxWidth="lg">
@@ -114,7 +156,7 @@ export const RetailWidget: React.FC<RetailWidgetProps> = ({ showGiftCards = fals
                   {product.imageUrl && (
                     <CardMedia
                       component="img"
-                      height="200"
+                      height="140"
                       image={product.imageUrl}
                       alt={product.name}
                     />
@@ -124,8 +166,8 @@ export const RetailWidget: React.FC<RetailWidgetProps> = ({ showGiftCards = fals
                     <Typography color="textSecondary">
                       {product.description}
                     </Typography>
-                    <Typography>
-                      Price: ${product.price}
+                    <Typography variant="h6" color="primary">
+                      ${product.price}
                     </Typography>
                     <Typography>
                       In Stock: {product.inventoryCount}
@@ -134,8 +176,8 @@ export const RetailWidget: React.FC<RetailWidgetProps> = ({ showGiftCards = fals
                   <Button
                     variant="contained"
                     color="primary"
-                    onClick={() => handleProductPurchase(product)}
-                    disabled={product.inventoryCount === 0}
+                    onClick={() => handlePurchase(product)}
+                    disabled={product.inventoryCount <= 0}
                   >
                     Purchase
                   </Button>
@@ -148,7 +190,7 @@ export const RetailWidget: React.FC<RetailWidgetProps> = ({ showGiftCards = fals
 
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
         <DialogTitle>
-          {showGiftCards ? 'Purchase Gift Card' : 'Confirm Product Purchase'}
+          {showGiftCards ? 'Purchase Gift Card' : 'Confirm Purchase'}
         </DialogTitle>
         <DialogContent>
           {showGiftCards ? (
@@ -159,40 +201,32 @@ export const RetailWidget: React.FC<RetailWidgetProps> = ({ showGiftCards = fals
               type="number"
               fullWidth
               value={giftCardAmount}
-              onChange={handleGiftCardAmountChange}
+              onChange={(e) => setGiftCardAmount(e.target.value)}
             />
-          ) : selectedProduct ? (
+          ) : (
             <>
-              <Typography variant="h6" gutterBottom>
-                {selectedProduct.name}
-              </Typography>
               <Typography>
-                Price: ${selectedProduct.price}
+                Are you sure you want to purchase {selectedProduct?.name}?
               </Typography>
-              <FormControl fullWidth sx={{ mt: 2 }}>
-                <InputLabel>Quantity</InputLabel>
-                <Select
-                  value={quantity}
+              <Box mt={2}>
+                <TextField
+                  type="number"
                   label="Quantity"
-                  onChange={handleQuantityChange}
-                >
-                  {[...Array(selectedProduct.inventoryCount)].map((_, i) => (
-                    <MenuItem key={i + 1} value={i + 1}>
-                      {i + 1}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  value={quantity}
+                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  inputProps={{ min: 1, max: selectedProduct?.inventoryCount }}
+                />
+              </Box>
             </>
-          ) : null}
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
           <Button onClick={handleConfirmPurchase} color="primary">
-            Confirm Purchase
+            Confirm
           </Button>
         </DialogActions>
       </Dialog>
     </Container>
   );
-}; 
+};

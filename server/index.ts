@@ -48,7 +48,7 @@ initializeOAuth({
   clientId: process.env.MINDBODY_CLIENT_ID || '',
   clientSecret: process.env.MINDBODY_CLIENT_SECRET || '',
   tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
-  redirectUri: process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth/callback',
+  redirectUri: process.env.OAUTH_REDIRECT_URI || '',
   siteId: process.env.MINDBODY_SITE_ID || '',
   apiKey: process.env.MINDBODY_API_KEY || ''
 });
@@ -431,6 +431,124 @@ apiRouter.get('/appointments/bookableitems', async (req, res) => {
       console.error('Unexpected error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
+  }
+});
+
+// Products endpoint
+apiRouter.get('/products', async (req, res) => {
+  try {
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) {
+      return res.status(401).json({ error: 'No active session' });
+    }
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
+
+    console.log('Fetching products from Mindbody API');
+    const response = await mindbodyApi.get('/sale/products', {
+      params: {
+        SearchText: '',
+        Limit: 100,
+        Offset: 0,
+        IncludeInactive: false
+      }
+    });
+
+    console.log('Products fetched successfully:', {
+      count: response.data.Products?.length || 0,
+      totalResults: response.data.TotalResults || 0
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Mindbody API error:', {
+        status: error.response?.status,
+        message: error.response?.data?.Message,
+        data: error.response?.data
+      });
+    }
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
+
+// Purchase endpoint
+apiRouter.post('/products/purchase', async (req, res) => {
+  try {
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) {
+      return res.status(401).json({ error: 'No active session' });
+    }
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
+
+    const { productId, quantity } = req.body;
+    if (!productId || !quantity) {
+      return res.status(400).json({ error: 'productId and quantity are required' });
+    }
+
+    console.log('Processing purchase:', { productId, quantity });
+    const response = await mindbodyApi.post('/sale/checkout', {
+      ProductId: productId,
+      Quantity: quantity,
+      ClientId: session.clientInfo.Id
+    });
+
+    console.log('Purchase processed successfully:', response.data);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error processing purchase:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Mindbody API error:', {
+        status: error.response?.status,
+        message: error.response?.data?.Message,
+        data: error.response?.data
+      });
+    }
+    res.status(500).json({ error: 'Failed to process purchase' });
+  }
+});
+
+// Gift card purchase endpoint
+apiRouter.post('/products/giftcard', async (req, res) => {
+  try {
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) {
+      return res.status(401).json({ error: 'No active session' });
+    }
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
+
+    const { amount } = req.body;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Valid amount is required' });
+    }
+
+    console.log('Processing gift card purchase:', { amount });
+    const response = await mindbodyApi.post('/sale/checkout', {
+      GiftCardAmount: amount,
+      ClientId: session.clientInfo.Id
+    });
+
+    console.log('Gift card purchase processed successfully:', response.data);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error processing gift card purchase:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Mindbody API error:', {
+        status: error.response?.status,
+        message: error.response?.data?.Message,
+        data: error.response?.data
+      });
+    }
+    res.status(500).json({ error: 'Failed to process gift card purchase' });
   }
 });
 

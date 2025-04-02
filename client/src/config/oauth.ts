@@ -3,7 +3,7 @@ export const OAUTH_CONFIG = {
   authorizeUrl: 'https://signin.mindbodyonline.com/connect/authorize',
   tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
   // This must match exactly what is registered in the Mindbody Partner Portal
-  redirectUri: import.meta.env.VITE_OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth/callback',
+  redirectUri: import.meta.env.VITE_OAUTH_REDIRECT_URI,
   // Update scopes to match Mindbody's requirements
   scope: [
     'email',
