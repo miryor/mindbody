@@ -377,7 +377,7 @@ apiRouter.get('/appointments/bookableitems', async (req, res) => {
     }
 
     const tz = session.timezone;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, sessionTypeIds } = req.query;
     
     if (!startDate || !endDate) {
       return res.status(400).json({ error: 'startDate and endDate are required' });
@@ -387,28 +387,26 @@ apiRouter.get('/appointments/bookableitems', async (req, res) => {
     const formattedStartDate = formatDateWithTimezone(parseDate(startDate as string, tz), tz);
     const formattedEndDate = formatDateWithTimezone(parseDate(endDate as string, tz), tz);
 
+    // Get all session type IDs if none provided
+    const typeIds = sessionTypeIds || sessionTypes.types.map(type => type.Id);
+
     console.log('Fetching appointments from Mindbody API with dates:', {
       requestStartDate: startDate,
       requestEndDate: endDate,
       tz: tz,
       startDate: formattedStartDate,
-      endDate: formattedEndDate
+      endDate: formattedEndDate,
+      sessionTypeIds: typeIds
     });
 
     const response = await mindbodyApi.get('/appointment/bookableitems', {
       params: {
-        StartDateTime: formattedStartDate,
-        EndDateTime: formattedEndDate,
-        CrossRegionalLookup: true,
-        HideCanceledClasses: false,
-        HideRelatedPrograms: false,
-        IncludeLocation: true,
-        IncludeSemesterId: true,
-        IncludeWaitlistAvailable: true,
-        Limit: 100,
-        Offset: 0,
-        ShowPublicOnly: false,
-        CrossLocationLookup: true
+        StartDate: formattedStartDate,
+        EndDate: formattedEndDate,
+        SessionTypeIds: typeIds,
+        StaffIds: [], // Optional: filter by staff
+        LocationIds: [], // Optional: filter by locations
+        Limit: 100
       }
     });
 
