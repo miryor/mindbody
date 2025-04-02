@@ -7,7 +7,6 @@ import { OAuthLogin } from './components/OAuthLogin';
 import { AdminCustomerForm } from './components/AdminCustomerForm';
 import { PasswordResetForm } from './components/PasswordResetForm';
 import { authService } from './services/authService';
-import { Box, Container, Typography } from '@mui/material';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
