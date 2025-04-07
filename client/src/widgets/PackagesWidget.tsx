@@ -45,6 +45,7 @@ const PackagesWidget: React.FC = () => {
         const data = await response.json();
         
         // Transform the API response to match our interface
+        // Using capitalized field names as per Mindbody API documentation
         const transformedPackages = (data.Packages || []).map((pkg: any) => ({
           id: pkg.Id,
           name: pkg.Name,
@@ -62,6 +63,7 @@ const PackagesWidget: React.FC = () => {
         }));
         
         setPackages(transformedPackages);
+        console.log('Packages data:', data.Packages);
       } catch (err) {
         console.error('Error fetching packages:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch packages');
@@ -73,10 +75,30 @@ const PackagesWidget: React.FC = () => {
     fetchPackages();
   }, []);
 
-  const handlePurchase = (pkg: Package) => {
-    // This would be implemented to handle package purchase
-    console.log('Purchase package:', pkg);
-    alert(`Package "${pkg.name}" would be purchased. This feature is not implemented yet.`);
+  const handlePurchase = async (pkg: Package) => {
+    try {
+      const response = await fetch('http://localhost:3001/api/v1/packages/purchase', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          packageId: pkg.id
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to purchase package');
+      }
+
+      const result = await response.json();
+      console.log('Purchase successful:', result);
+      alert(`Package "${pkg.name}" purchased successfully!`);
+    } catch (err) {
+      console.error('Error purchasing package:', err);
+      alert('Failed to purchase package. Please try again.');
+    }
   };
 
   if (loading) {

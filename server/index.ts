@@ -552,8 +552,8 @@ apiRouter.post('/products/giftcard', async (req, res) => {
   }
 });
 
-// Packages endpoint
-app.get('/api/v1/packages', async (req, res) => {
+// Add the packages endpoint under apiRouter
+apiRouter.get('/packages', async (req, res) => {
   try {
     const sessionId = req.cookies.sessionId;
     if (!sessionId) {
@@ -569,13 +569,15 @@ app.get('/api/v1/packages', async (req, res) => {
       params: {
         Limit: 100,
         Offset: 0,
-        SellOnline: true
+        SellOnline: true,
+        // Additional params from documentation
+        LocationId: null,
+        IncludeOnlyMerchantServices: false
       }
     });
 
     console.log('Packages fetched successfully:', {
-      count: response.data.Packages?.length || 0,
-      totalResults: response.data.PaginationResponse?.TotalResults || 0
+      count: response.data.Packages?.length || 0
     });
 
     res.json(response.data);
@@ -594,6 +596,44 @@ app.get('/api/v1/packages', async (req, res) => {
       console.error('Unexpected error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
+  }
+});
+
+// Package purchase endpoint
+apiRouter.post('/packages/purchase', async (req, res) => {
+  try {
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) {
+      return res.status(401).json({ error: 'No active session' });
+    }
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
+
+    const { packageId } = req.body;
+    if (!packageId) {
+      return res.status(400).json({ error: 'packageId is required' });
+    }
+
+    console.log('Processing package purchase:', { packageId });
+    const response = await mindbodyApi.post('/sale/checkout', {
+      PackageId: packageId,
+      ClientId: session.clientInfo.Id
+    });
+
+    console.log('Package purchase processed successfully:', response.data);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error processing package purchase:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Mindbody API error:', {
+        status: error.response?.status,
+        message: error.response?.data?.Message,
+        data: error.response?.data
+      });
+    }
+    res.status(500).json({ error: 'Failed to process package purchase' });
   }
 });
 
