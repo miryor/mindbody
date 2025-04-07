@@ -22,7 +22,7 @@ let oauthConfig: OAuthConfig = {
   clientId: '',
   clientSecret: '',
   tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
-  redirectUri: 'http://localhost:3000/oauth/callback',
+  redirectUri: process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/api/v1/oauth/callback',
   siteId: '',
   apiKey: ''
 };
