@@ -12,7 +12,7 @@ import geoip from 'geoip-lite';
 import { formatDateWithTimezone, parseDate } from './utils/dateUtils';
 // Import the session store and OAuth router
 import { sessions } from './services/sessionStore';
-import { router as oauthRouter } from './routes/oauth';
+import { router as oauthRouter, initializeOAuth } from './routes/oauth';
 
 dotenv.config();
 
@@ -36,13 +36,29 @@ const SITE_ID = process.env.MINDBODY_SITE_ID;
 const API_URL = process.env.MINDBODY_API_URL;
 const USERNAME = process.env.MINDBODY_USERNAME;
 const PASSWORD = process.env.MINDBODY_PASSWORD;
+const CLIENT_ID = process.env.MINDBODY_CLIENT_ID;
+const CLIENT_SECRET = process.env.MINDBODY_CLIENT_SECRET;
+const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth/callback';
 
 console.log('Server Configuration:', {
   hasApiKey: !!API_KEY,
   hasSiteId: !!SITE_ID,
   hasUsername: !!USERNAME,
   hasPassword: !!PASSWORD,
-  apiUrl: API_URL
+  hasClientId: !!CLIENT_ID,
+  hasClientSecret: !!CLIENT_SECRET,
+  apiUrl: API_URL,
+  redirectUri: OAUTH_REDIRECT_URI
+});
+
+// Initialize OAuth module with config
+initializeOAuth({
+  clientId: CLIENT_ID || '',
+  clientSecret: CLIENT_SECRET || '',
+  tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
+  redirectUri: OAUTH_REDIRECT_URI,
+  siteId: SITE_ID || '',
+  apiKey: API_KEY || ''
 });
 
 // Create axios instance for Mindbody API with timeout

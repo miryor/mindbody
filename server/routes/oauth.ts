@@ -7,13 +7,37 @@ import { sessions, createSession, deleteSession } from '../services/sessionStore
 
 const router = express.Router();
 
-// OAuth configuration
-const OAUTH_CONFIG = {
-  clientId: process.env.MINDBODY_CLIENT_ID,
-  clientSecret: process.env.MINDBODY_CLIENT_SECRET,
+// OAuth configuration interface
+interface OAuthConfig {
+  clientId: string;
+  clientSecret: string;
+  tokenUrl: string;
+  redirectUri: string;
+  siteId: string;
+  apiKey: string;
+}
+
+// Default configuration
+let oauthConfig: OAuthConfig = {
+  clientId: '',
+  clientSecret: '',
   tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
-  redirectUri: process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/api/v1/oauth/callback',
+  redirectUri: 'http://localhost:3000/oauth/callback',
+  siteId: '',
+  apiKey: ''
 };
+
+// Initialize function to set configuration
+export function initializeOAuth(config: OAuthConfig) {
+  oauthConfig = config;
+  console.log('OAuth module initialized with config:', {
+    clientId: config.clientId ? '****' + config.clientId.slice(-4) : 'missing',
+    redirectUri: config.redirectUri,
+    tokenUrl: config.tokenUrl,
+    siteId: config.siteId ? '****' + config.siteId.slice(-4) : 'missing',
+    apiKey: config.apiKey ? '****' + config.apiKey.slice(-4) : 'missing'
+  });
+}
 
 // OAuth callback endpoint
 router.post('/callback', async (req, res) => {
@@ -35,16 +59,22 @@ router.post('/callback', async (req, res) => {
     const geo = geoip.lookup(typeof ip === 'string' ? ip : '');
     const timezone = geo?.timezone || 'UTC'; // Default to UTC if timezone cannot be determined
 
+    console.log('Exchanging code for tokens with config:', {
+      clientId: oauthConfig.clientId ? '****' + oauthConfig.clientId.slice(-4) : 'missing',
+      redirectUri: oauthConfig.redirectUri,
+      tokenUrl: oauthConfig.tokenUrl
+    });
+
     // Exchange code for tokens
     const tokenResponse = await axios.post(
-      OAUTH_CONFIG.tokenUrl,
+      oauthConfig.tokenUrl,
       new URLSearchParams({
         grant_type: 'authorization_code',
-        client_id: OAUTH_CONFIG.clientId || '',
-        client_secret: OAUTH_CONFIG.clientSecret || '',
+        client_id: oauthConfig.clientId,
+        client_secret: oauthConfig.clientSecret,
         code: code || '',
-        redirect_uri: OAUTH_CONFIG.redirectUri,
-        subscriberId: process.env.MINDBODY_SITE_ID || '',
+        redirect_uri: oauthConfig.redirectUri,
+        subscriberId: oauthConfig.siteId,
         scope: [
           'email',
           'profile',
@@ -81,7 +111,7 @@ router.post('/callback', async (req, res) => {
     try {
       const clientResponse = await axios.get('https://api.mindbodyonline.com/platform/accounts/v1/me', {
         headers: {
-          'API-Key': process.env.MINDBODY_API_KEY,
+          'API-Key': oauthConfig.apiKey,
           'Authorization': `Bearer ${session.accessToken}`,
           'Content-Type': 'application/json',
         },
@@ -121,6 +151,17 @@ router.post('/callback', async (req, res) => {
     res.redirect('http://localhost:3000');
   } catch (error) {
     console.error('OAuth token exchange error:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('OAuth error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          data: error.config?.data,
+          headers: error.config?.headers
+        }
+      });
+    }
     res.status(500).json({ error: 'Failed to exchange authorization code' });
   }
 });
@@ -182,4 +223,4 @@ router.get('/logout-callback', (req, res) => {
   res.redirect('http://localhost:3000');
 });
 
-export { router }; 
+export { router, initializeOAuth }; 
