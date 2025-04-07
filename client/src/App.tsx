@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { SchedulerWidget } from './widgets/SchedulerWidget';
 import { RetailWidget } from './widgets/RetailWidget';
+import PackagesWidget from './widgets/PackagesWidget';
 import { OAuthCallback } from './components/OAuthCallback';
 import { OAuthLogin } from './components/OAuthLogin';
 import { AdminCustomerForm } from './components/AdminCustomerForm';
@@ -75,6 +76,7 @@ export const App: React.FC = () => {
               <>
                 <li><Link to="/scheduler">Scheduler</Link></li>
                 <li><Link to="/retail">Shop</Link></li>
+                <li><Link to="/packages">Packages</Link></li>
                 <li><Link to="/giftcards">Gift Cards</Link></li>
                 <li><a href={getLogoutUrl()} className="logout-button">Logout</a></li>
               </>
@@ -103,6 +105,11 @@ export const App: React.FC = () => {
           <Route path="/retail" element={
             <ProtectedRoute>
               <RetailWidget showGiftCards={false} />
+            </ProtectedRoute>
+          } />
+          <Route path="/packages" element={
+            <ProtectedRoute>
+              <PackagesWidget />
             </ProtectedRoute>
           } />
           <Route path="/giftcards" element={

@@ -552,6 +552,51 @@ apiRouter.post('/products/giftcard', async (req, res) => {
   }
 });
 
+// Packages endpoint
+app.get('/api/v1/packages', async (req, res) => {
+  try {
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) {
+      return res.status(401).json({ error: 'No active session' });
+    }
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
+
+    console.log('Fetching packages from Mindbody API');
+    const response = await mindbodyApi.get('/sale/packages', {
+      params: {
+        Limit: 100,
+        Offset: 0,
+        SellOnline: true
+      }
+    });
+
+    console.log('Packages fetched successfully:', {
+      count: response.data.Packages?.length || 0,
+      totalResults: response.data.PaginationResponse?.TotalResults || 0
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching packages:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Mindbody API error:', {
+        status: error.response?.status,
+        message: error.response?.data?.Message,
+        data: error.response?.data
+      });
+      res.status(error.response?.status || 500).json({
+        error: error.response?.data?.Message || 'Failed to fetch packages'
+      });
+    } else {
+      console.error('Unexpected error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+});
+
 // Mount OAuth routes under the base router
 apiRouter.use('/oauth', oauthRouter);
 
