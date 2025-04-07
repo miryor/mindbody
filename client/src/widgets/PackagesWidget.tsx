@@ -8,10 +8,28 @@ import {
   Button,
   Box,
   CircularProgress,
-  Divider
+  Divider,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-// Type definitions for packages
+// Type definitions for packages based on Mindbody API documentation
+interface ServiceItem {
+  id: number;
+  name: string;
+  price: number;
+  count: number;
+}
+
+interface ProductItem {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
 interface Package {
   id: number;
   name: string;
@@ -22,7 +40,8 @@ interface Package {
   sellOnline: boolean;
   image?: string;
   sessions?: number;
-  services?: { id: number; name: string }[];
+  services: ServiceItem[];
+  products: ProductItem[];
 }
 
 const PackagesWidget: React.FC = () => {
@@ -43,6 +62,7 @@ const PackagesWidget: React.FC = () => {
         }
 
         const data = await response.json();
+        console.log('Raw packages data:', data.Packages);
         
         // Transform the API response to match our interface
         // Using capitalized field names as per Mindbody API documentation
@@ -52,18 +72,27 @@ const PackagesWidget: React.FC = () => {
           description: pkg.Description,
           price: pkg.Price,
           programId: pkg.ProgramId,
-          programName: pkg.ProgramName,
+          programName: pkg.ProgramName || 'General',
           sellOnline: pkg.SellOnline,
           image: pkg.ImageUrl,
           sessions: pkg.NumberOfSessions,
-          services: pkg.Services?.map((service: any) => ({
+          // Transform Services array
+          services: (pkg.Services || []).map((service: any) => ({
             id: service.Id,
-            name: service.Name
+            name: service.Name,
+            price: service.Price,
+            count: service.Count
+          })),
+          // Transform Products array
+          products: (pkg.Products || []).map((product: any) => ({
+            id: product.Id,
+            name: product.Name,
+            price: product.Price,
+            quantity: product.Quantity
           }))
         }));
         
         setPackages(transformedPackages);
-        console.log('Packages data:', data.Packages);
       } catch (err) {
         console.error('Error fetching packages:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch packages');
@@ -164,17 +193,45 @@ const PackagesWidget: React.FC = () => {
                     {pkg.description}
                   </Typography>
                 )}
+                
+                {/* Included Services Accordion */}
                 {pkg.services && pkg.services.length > 0 && (
-                  <>
-                    <Typography variant="subtitle2">Included Services:</Typography>
-                    <ul style={{ paddingLeft: '1.5rem', margin: '0.5rem 0' }}>
-                      {pkg.services.map(service => (
-                        <li key={service.id}>
-                          <Typography variant="body2">{service.name}</Typography>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
+                  <Accordion>
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                      <Typography variant="subtitle2">Included Services</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <ul style={{ paddingLeft: '1.5rem', margin: '0' }}>
+                        {pkg.services.map(service => (
+                          <li key={service.id}>
+                            <Typography variant="body2">
+                              {service.name} {service.count > 1 ? `(${service.count}x)` : ''}
+                            </Typography>
+                          </li>
+                        ))}
+                      </ul>
+                    </AccordionDetails>
+                  </Accordion>
+                )}
+                
+                {/* Included Products Accordion */}
+                {pkg.products && pkg.products.length > 0 && (
+                  <Accordion>
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                      <Typography variant="subtitle2">Included Products</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <ul style={{ paddingLeft: '1.5rem', margin: '0' }}>
+                        {pkg.products.map(product => (
+                          <li key={product.id}>
+                            <Typography variant="body2">
+                              {product.name} {product.quantity > 1 ? `(${product.quantity}x)` : ''}
+                            </Typography>
+                          </li>
+                        ))}
+                      </ul>
+                    </AccordionDetails>
+                  </Accordion>
                 )}
               </CardContent>
               <Box p={2} pt={0}>

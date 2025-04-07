@@ -564,20 +564,32 @@ apiRouter.get('/packages', async (req, res) => {
       return res.status(401).json({ error: 'Invalid session' });
     }
 
+    // Get query parameters with defaults
+    const { 
+      limit = '100', 
+      offset = '0', 
+      sellOnline = 'true',
+      locationId 
+    } = req.query;
+
     console.log('Fetching packages from Mindbody API');
     const response = await mindbodyApi.get('/sale/packages', {
       params: {
-        Limit: 100,
-        Offset: 0,
-        SellOnline: true,
+        Limit: parseInt(limit as string),
+        Offset: parseInt(offset as string),
+        SellOnline: sellOnline === 'true',
+        LocationId: locationId || null,
         // Additional params from documentation
-        LocationId: null,
-        IncludeOnlyMerchantServices: false
+        IncludeContracts: true,
+        IncludeServices: true,
+        IncludeProducts: true,
+        SalesReps: false
       }
     });
 
     console.log('Packages fetched successfully:', {
-      count: response.data.Packages?.length || 0
+      count: response.data.Packages?.length || 0,
+      pagination: response.data.PaginationResponse || {}
     });
 
     res.json(response.data);
