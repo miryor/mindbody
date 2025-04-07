@@ -223,4 +223,4 @@ router.get('/logout-callback', (req, res) => {
   res.redirect('http://localhost:3000');
 });
 
-export { router, initializeOAuth }; 
+export { router }; 
