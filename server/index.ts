@@ -38,7 +38,7 @@ const USERNAME = process.env.MINDBODY_USERNAME;
 const PASSWORD = process.env.MINDBODY_PASSWORD;
 const CLIENT_ID = process.env.MINDBODY_CLIENT_ID;
 const CLIENT_SECRET = process.env.MINDBODY_CLIENT_SECRET;
-const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/oauth/callback';
+const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'http://localhost:3000/api/v1/oauth/callback';
 
 console.log('Server Configuration:', {
   hasApiKey: !!API_KEY,
