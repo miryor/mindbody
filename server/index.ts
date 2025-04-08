@@ -578,12 +578,7 @@ apiRouter.get('/packages', async (req, res) => {
         Limit: parseInt(limit as string),
         Offset: parseInt(offset as string),
         SellOnline: sellOnline === 'true',
-        LocationId: locationId || null,
-        // Additional params from documentation
-        IncludeContracts: true,
-        IncludeServices: true,
-        IncludeProducts: true,
-        SalesReps: false
+        LocationId: locationId || null
       }
     });
 
