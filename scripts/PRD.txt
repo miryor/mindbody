@@ -1,0 +1,100 @@
+\
+<context>
+# Overview
+This document outlines the requirements for developing embeddable HTML widgets for Mindbody studios. These widgets will allow studio customers to interact with core Mindbody functionalities (login, registration, purchasing, scheduling) directly from the studio's own website (e.g., Squarespace, WordPress). The goal is to provide a seamless and integrated experience for end-users and an easy-to-implement solution for studio owners.
+
+# Core Features
+1.  **Authentication Widget:**
+    *   **What:** Allows users to log in to their existing Mindbody account or register for a new one.
+    *   **Why:** Essential for identifying users, accessing their passes/memberships, and enabling booking/purchasing.
+    *   **How:** Frontend form interacts with Mindbody API authentication endpoints. Secure session/token management on the client-side.
+2.  **Schedule Widget:**
+    *   **What:** Displays available classes and/or instructor appointments in a user-friendly format (e.g., calendar view, list view).
+    *   **Why:** Allows customers to easily browse offerings and availability.
+    *   **How:** Fetches schedule data (classes, appointments, availability, instructors) from the Mindbody API based on configurable parameters (e.g., date range, view type).
+3.  **Purchasing Widget/Flow:**
+    *   **What:** Enables users to purchase class packs, memberships, appointment sessions, gift cards, and retail products for themselves *or on behalf of another user*.
+    *   **Why:** Provides a direct channel for revenue generation within the studio's website, including gifting capabilities.
+    *   **How:** Interfaces with Mindbody API to fetch pricing options, process transactions, and update user accounts. Requires API support for assigning purchased items to a different client ID (may involve searching for the recipient user).
+4.  **Booking Widget/Flow:**
+    *   **What:** Allows logged-in users with appropriate passes/sessions to sign up for specific classes or book appointments.
+    *   **Why:** Core functionality for customers to utilize purchased services.
+    *   **How:** Interacts with Mindbody API to check user eligibility (valid pass/session), reserve spots in classes, or book appointment slots.
+5.  **Skinnable Widgets:**
+    *   **What:** Allow studios to customize the visual appearance (fonts, colors, dimensions, general styles) of the embedded widgets.
+    *   **Why:** Enables studios to match the widgets' look and feel to their own website branding for a seamless integration.
+    *   **How:** Implement styling using CSS variables, theme objects, or configuration parameters passed via the embed script. Provide clear documentation on available customization options and how to apply them.
+
+# User Experience
+*   **User Personas:**
+    *   **New Studio Customer:** Needs to easily register an account, understand offerings, purchase services, and book their first session.
+    *   **Existing Studio Customer:** Wants quick login, view their current passes/schedule, and book/purchase additional services efficiently.
+    *   **Studio Owner/Admin:** Requires a simple method to embed and configure the widgets on their website.
+*   **Key User Flows:**
+    *   **Registration & First Purchase/Booking:** New User -> Register -> Browse Schedule/Services -> Purchase Pass/Session -> Book Class/Appointment.
+    *   **Existing User Booking:** Existing User -> Login -> Browse Schedule -> Select Class/Appointment -> Book.
+    *   **Purchasing Additional Services:** Existing User -> Login -> Browse Pricing Options -> Purchase Item (Pass, Gift Card, Product).
+*   **UI/UX Considerations:**
+    *   Clean, intuitive interface.
+    *   Responsive design (mobile-friendly).
+    *   Clear feedback during API calls (loading states, success/error messages).
+    *   Minimal friction in login, purchase, and booking processes.
+    *   Easy navigation between widgets or within a combined widget flow.
+    *   Customizable styling options (fonts, colors, etc.) for studios.
+</context>
+<PRD>
+# Technical Architecture
+*   **System Components:**
+    *   **Embeddable Frontend Widgets:** Self-contained HTML/CSS/JavaScript components. Potentially built using a framework (React, Vue, Svelte) or vanilla JS for lighter weight.
+    *   **Mindbody API:** Primary backend for all data fetching, purchasing, and booking operations (excluding initial OAuth).
+    *   **Backend Proxy/BFF:** A necessary backend (e.g., Node.js/Express) is already set up to securely handle the Mindbody OAuth login flow and potentially store API keys or manage CORS issues.
+*   **Data Models:** Primarily driven by Mindbody API responses (User profiles, Schedules, Classes, Appointments, Pricing Options, Products, etc.). Client-side state management for UI and user session.
+*   **APIs and Integrations:** Mindbody Public API is the core integration. Potential need for a payment gateway integration if not handled entirely via Mindbody API calls.
+*   **Infrastructure Requirements:**
+    *   Static hosting provider (Netlify, Vercel, AWS S3/CloudFront, GitHub Pages) for the widget's JS/CSS assets.
+    *   (If Backend Proxy is used) Hosting for the backend service (e.g., Vercel Serverless, AWS Lambda, Heroku).
+
+# Development Roadmap
+*   **Phase 1: Core Authentication & Schedule View (MVP)**
+    *   Implement User Login/Registration widget connecting to Mindbody API.
+    *   Implement Schedule Widget displaying classes fetched from Mindbody API (read-only calendar/list view).
+    *   Establish basic embeddable script mechanism.
+    *   Secure handling of Mindbody API credentials (initially might be client-side if possible, or require a simple backend/config).
+*   **Phase 2: Purchasing & Booking Flow**
+    *   Implement Purchase widget/flow for class packs/memberships.
+    *   Implement Booking widget/flow for classes (requires login and valid pass).
+    *   Refine session management post-login.
+    *   Integrate purchase/booking API calls with Mindbody.
+*   **Phase 3: Appointments & Additional Purchases**
+    *   Extend Schedule Widget to display Appointments & Instructor availability.
+    *   Extend Purchase widget/flow for Appointments, Gift Cards, and Products.
+    *   Implement Booking widget/flow for Appointments.
+*   **Phase 4: Refinement & Embeddability Enhancements**
+    *   Improve UI/UX based on initial feedback.
+    *   Add configuration options to the embed script (e.g., default view, filtering options).
+    *   Implement and document widget styling/skinning options.
+    *   Develop clear documentation for studio owners on embedding and configuration.
+    *   Cross-browser and cross-platform testing (Squarespace, WordPress).
+
+# Logical Dependency Chain
+1.  **Mindbody API Setup:** Obtain API keys, understand relevant endpoints (Auth, Schedule, Sale, Class, Appointment).
+2.  **Schedule Display (Public):** Implement the read-only view of classes/appointments first. This provides immediate value without requiring login and tests core API connectivity.
+3.  **Authentication:** Build login/registration. This becomes necessary *before* proceeding to purchase or booking actions.
+4.  **Purchasing (Passes/etc.):** Enable users (now authenticated) to buy prerequisites for booking or other items.
+5.  **Class/Appointment Booking:** Allow authenticated users to book using their purchased passes/sessions.
+6.  **User Account View (Optional/Later):** Implement functionality for users to see their purchased items, existing registrations, etc. (Requires authentication).
+7.  **Extended Purchasing/Features:** Add Gift Cards, Products, purchase-for-others, etc.
+8.  **Embed Configuration, Skinning & Docs:** Finalize the embedding process, styling options, and documentation for studio owners.
+
+# Risks and Mitigations
+*   **Mindbody API Limitations/Complexity:** Risk: API might be complex, rate-limited, or lack certain desired functionalities. Mitigation: Thoroughly research API documentation beforehand. Start with core features and build incrementally. Implement robust error handling and logging for API interactions.
+*   **Security (API Keys):** Risk: Exposing Mindbody API keys directly on the client-side is insecure. Mitigation: Implement a simple backend proxy (BFF) to handle API calls if necessary, or investigate Mindbody's recommended practices for client-side integrations.
+*   **Embeddability Challenges:** Risk: Widgets might conflict with host website's CSS/JS or face CORS issues. Mitigation: Use standard web component practices, shadow DOM if feasible, or CSS scoping. Configure CORS appropriately (likely needed on the Mindbody side or via a proxy). Test embedding on target platforms early.
+*   **Payment Processing:** Risk: Integrating payments can be complex and requires security compliance. Mitigation: Leverage Mindbody's existing payment processing via API as much as possible. If a third-party gateway is needed, choose one with robust JS SDKs and follow security best practices.
+*   **Scope Creep:** Risk: Adding too many features beyond the core requirements. Mitigation: Stick closely to the phased roadmap. Prioritize features based on core user needs and studio value.
+
+# Appendix
+*   Mindbody API Documentation: [Link to relevant developer portal]
+*   Existing Codebase Structure Overview: [Briefly mention key files/folders if known, e.g., `src/widgets`, `src/api`]
+*   Target Platforms: Squarespace, WordPress (initially).
+``` 

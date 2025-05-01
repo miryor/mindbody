@@ -341,10 +341,38 @@ apiRouter.get('/classes', async (req, res) => {
       }
     });
 
-    console.log('Classes fetched successfully:', {
-      count: response.data.Classes?.length || 0,
-      totalResults: response.data.TotalResults || 0
+    // Log response metadata
+    console.log('Classes API response metadata:', {
+      statusCode: response.status,
+      totalResults: response.data.TotalResults,
+      paginationResponse: response.data.PaginationResponse,
+      topLevelFields: Object.keys(response.data),
     });
+    
+    // Log detailed information about first class
+    if (response.data.Classes && response.data.Classes.length > 0) {
+      const firstClass = response.data.Classes[0];
+      console.log('Complete first class document structure:');
+      console.log(JSON.stringify(firstClass, null, 2));
+      
+      // Log keys at each level of nesting
+      console.log('First class document fields:', Object.keys(firstClass));
+      
+      // Log ClassDescription fields if present
+      if (firstClass.ClassDescription) {
+        console.log('ClassDescription fields:', Object.keys(firstClass.ClassDescription));
+      }
+      
+      // Log Staff fields if present
+      if (firstClass.Staff) {
+        console.log('Staff fields:', Object.keys(firstClass.Staff));
+      }
+      
+      // Log Location fields if present
+      if (firstClass.Location) {
+        console.log('Location fields:', Object.keys(firstClass.Location));
+      }
+    }
 
     res.json(response.data);
   } catch (error) {
@@ -410,10 +438,38 @@ apiRouter.get('/appointments/bookableitems', async (req, res) => {
       }
     });
 
-    console.log('Appointments fetched successfully:', {
-      count: response.data.BookableItems?.length || 0,
-      totalResults: response.data.TotalResults || 0
+    // Log response metadata
+    console.log('Appointments API response metadata:', {
+      statusCode: response.status,
+      totalResults: response.data.TotalResults,
+      paginationResponse: response.data.PaginationResponse,
+      topLevelFields: Object.keys(response.data),
     });
+    
+    // Log detailed information about first appointment
+    if (response.data.BookableItems && response.data.BookableItems.length > 0) {
+      const firstAppointment = response.data.BookableItems[0];
+      console.log('Complete first appointment document structure:');
+      console.log(JSON.stringify(firstAppointment, null, 2));
+      
+      // Log keys at each level of nesting
+      console.log('First appointment document fields:', Object.keys(firstAppointment));
+      
+      // Log SessionType fields if present
+      if (firstAppointment.SessionType) {
+        console.log('SessionType fields:', Object.keys(firstAppointment.SessionType));
+      }
+      
+      // Log Staff fields if present
+      if (firstAppointment.Staff) {
+        console.log('Staff fields:', Object.keys(firstAppointment.Staff));
+      }
+      
+      // Log Location fields if present
+      if (firstAppointment.Location) {
+        console.log('Location fields:', Object.keys(firstAppointment.Location));
+      }
+    }
 
     res.json(response.data);
   } catch (error) {
@@ -456,10 +512,22 @@ apiRouter.get('/products', async (req, res) => {
       }
     });
 
-    console.log('Products fetched successfully:', {
-      count: response.data.Products?.length || 0,
-      totalResults: response.data.TotalResults || 0
+    // Log response metadata
+    console.log('Products API response metadata:', {
+      statusCode: response.status,
+      totalResults: response.data.TotalResults,
+      paginationResponse: response.data.PaginationResponse,
+      topLevelFields: Object.keys(response.data),
     });
+    
+    // Log detailed information about first product
+    if (response.data.Products && response.data.Products.length > 0) {
+      const firstProduct = response.data.Products[0];
+      console.log('Complete first product document structure:');
+      console.log(JSON.stringify(firstProduct, null, 2));
+      
+      console.log('First product document fields:', Object.keys(firstProduct));
+    }
 
     res.json(response.data);
   } catch (error) {
@@ -578,19 +646,35 @@ apiRouter.get('/packages', async (req, res) => {
         Limit: parseInt(limit as string),
         Offset: parseInt(offset as string),
         SellOnline: sellOnline === 'true',
-        LocationId: locationId || null,
-        // Additional params from documentation
-        IncludeContracts: true,
-        IncludeServices: true,
-        IncludeProducts: true,
-        SalesReps: false
+        LocationId: locationId || null
       }
     });
 
-    console.log('Packages fetched successfully:', {
-      count: response.data.Packages?.length || 0,
-      pagination: response.data.PaginationResponse || {}
+    // Log response metadata
+    console.log('Packages API response metadata:', {
+      statusCode: response.status,
+      paginationResponse: response.data.PaginationResponse,
+      topLevelFields: Object.keys(response.data),
     });
+    
+    // Log detailed information about first package
+    if (response.data.Packages && response.data.Packages.length > 0) {
+      const firstPackage = response.data.Packages[0];
+      console.log('Complete first package document structure:');
+      console.log(JSON.stringify(firstPackage, null, 2));
+      
+      console.log('First package document fields:', Object.keys(firstPackage));
+      
+      // Log Services fields if present
+      if (firstPackage.Services && firstPackage.Services.length > 0) {
+        console.log('Package Services fields:', Object.keys(firstPackage.Services[0]));
+      }
+      
+      // Log Products fields if present
+      if (firstPackage.Products && firstPackage.Products.length > 0) {
+        console.log('Package Products fields:', Object.keys(firstPackage.Products[0]));
+      }
+    }
 
     res.json(response.data);
   } catch (error) {
@@ -646,6 +730,109 @@ apiRouter.post('/packages/purchase', async (req, res) => {
       });
     }
     res.status(500).json({ error: 'Failed to process package purchase' });
+  }
+});
+
+// List services for pricing updates
+apiRouter.get('/admin/services', async (req, res) => {
+  try {
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) {
+      return res.status(401).json({ error: 'No active session' });
+    }
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
+
+    const { limit = '100', offset = '0', searchText = '' } = req.query;
+
+    console.log('Fetching services from Mindbody API');
+    const response = await mindbodyApi.get('/sale/services', {
+      params: {
+        Limit: parseInt(limit as string),
+        Offset: parseInt(offset as string),
+        SearchText: searchText
+      }
+    });
+
+    // Log response metadata
+    console.log('Services API response metadata:', {
+      statusCode: response.status,
+      totalResults: response.data.Services?.length || 0,
+      paginationResponse: response.data.PaginationResponse,
+      topLevelFields: Object.keys(response.data),
+    });
+    
+    // Log detailed information about first service
+    if (response.data.Services && response.data.Services.length > 0) {
+      const firstService = response.data.Services[0];
+      console.log('Complete first service document structure:');
+      console.log(JSON.stringify(firstService, null, 2));
+      
+      console.log('First service document fields:', Object.keys(firstService));
+    }
+
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching services:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Mindbody API error:', {
+        status: error.response?.status,
+        message: error.response?.data?.Message,
+        data: error.response?.data
+      });
+    }
+    res.status(500).json({ error: 'Failed to fetch services' });
+  }
+});
+
+// Update service pricing
+apiRouter.put('/admin/services/:id', async (req, res) => {
+  try {
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) {
+      return res.status(401).json({ error: 'No active session' });
+    }
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Invalid session' });
+    }
+
+    const { id } = req.params;
+    const { price } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Service ID is required' });
+    }
+    if (price === undefined || price === null) {
+      return res.status(400).json({ error: 'Price is required' });
+    }
+
+    console.log(`Updating service ${id} with price ${price}`);
+    
+    // Format the API request according to documentation
+    const response = await mindbodyApi.put('/sale/services', {
+      Services: [
+        {
+          Id: parseInt(id),
+          Price: parseFloat(price)
+        }
+      ]
+    });
+
+    console.log('Service price updated successfully:', response.data);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error updating service price:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Mindbody API error:', {
+        status: error.response?.status,
+        message: error.response?.data?.Message,
+        data: error.response?.data
+      });
+    }
+    res.status(500).json({ error: 'Failed to update service price' });
   }
 });
 

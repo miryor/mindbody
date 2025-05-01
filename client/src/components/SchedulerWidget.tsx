@@ -50,7 +50,7 @@ const SchedulerWidget: React.FC = () => {
         type: 'class' as const,
         location: cls.Location?.Name,
         instructor: `${cls.Instructor?.FirstName} ${cls.Instructor?.LastName}`,
-        description: cls.Description
+        description: cls.ClassDescription
       })) || [];
 
       // Transform appointments into events

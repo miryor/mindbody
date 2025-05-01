@@ -8,6 +8,7 @@ import { OAuthLogin } from './components/OAuthLogin';
 import { AdminCustomerForm } from './components/AdminCustomerForm';
 import { PasswordResetForm } from './components/PasswordResetForm';
 import { authService } from './services/authService';
+import { AdminPricingPanel } from './components/AdminPricingPanel';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -83,6 +84,7 @@ export const App: React.FC = () => {
             ) : null}
             <li><Link to="/admin/customer">Add Client</Link></li>
             <li><Link to="/admin/password-reset">Reset Password</Link></li>
+            <li><Link to="/admin/pricing">Manage Pricing</Link></li>
           </ul>
         </nav>
 
@@ -120,6 +122,11 @@ export const App: React.FC = () => {
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/admin/customer" element={<AdminCustomerForm />} />
           <Route path="/admin/password-reset" element={<PasswordResetForm />} />
+          <Route path="/admin/pricing" element={
+            <ProtectedRoute>
+              <AdminPricingPanel />
+            </ProtectedRoute>
+          } />
         </Routes>
 
         <style>{`
