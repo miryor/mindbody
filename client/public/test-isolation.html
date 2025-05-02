@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSS Isolation Test</title>
+  
+  <!-- First: Reset everything to defaults to avoid browser-specific styles -->
+  <style>
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+    }
+  </style>
+  
+  <!-- Then: Add our extremely invasive host page styling -->
+  <style>
+    /* Super-aggressive styling with !important everywhere */
+    html, body {
+      font-family: 'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive !important;
+      color: purple !important;
+      background-color: #ffcccc !important;
+      line-height: 1.6 !important;
+      font-size: 18px !important;
+    }
+    
+    /* Make absolutely sure these styles are applied */
+    body * {
+      font-family: inherit !important;
+      color: inherit !important;
+    }
+    
+    /* Super-specific selector for buttons */
+    body button, body input[type="button"], body input[type="submit"], body .button {
+      border-radius: 0 !important;
+      background-color: orange !important;
+      color: black !important;
+      border: 3px dashed red !important;
+      font-size: 24px !important;
+      text-transform: uppercase !important;
+      padding: 10px 20px !important;
+    }
+    
+    /* Very specific selectors for headings */
+    body h1, body h2, body h3, body h4, body h5, body h6 {
+      font-family: 'Impact', 'Haettenschweiler', 'Arial Narrow Bold', sans-serif !important;
+      color: green !important;
+      text-transform: uppercase !important;
+      margin-bottom: 20px !important;
+    }
+    
+    /* Link styling */
+    body a, body a:link, body a:visited {
+      color: deeppink !important;
+      text-decoration: line-through !important;
+      font-weight: bold !important;
+    }
+    
+    /* Apply to all divs */
+    body div {
+      padding: 20px !important;
+      margin: 20px !important;
+      border: 5px dotted blue !important;
+      border-radius: 0 !important;
+    }
+    
+    /* Paragraphs */
+    body p {
+      margin-bottom: 15px !important;
+      text-align: justify !important;
+    }
+    
+    /* Extra noticeable styling */
+    .host-content {
+      background-color: yellow !important;
+      padding: 30px !important;
+    }
+  </style>
+</head>
+<body>
+  <h1>Host Page with Invasive Styling</h1>
+  <p>This page has intentionally <strong>awful styling</strong> to test our CSS isolation.</p>
+  
+  <div class="host-content">
+    <h2>Host Page Content</h2>
+    <p>This is normal host page content with the site's styling. The text should be purple, with Comic Sans font, and this div should have a blue dotted border and yellow background.</p>
+    <button>Host Button</button>
+    <p>This button should have a dashed red border and orange background.</p>
+  </div>
+  
+  <!-- Include the Mindbody Widgets embed script -->
+  <script src="./embed.js"></script>
+  
+  <!-- This is where our isolated widget will render -->
+  <div id="mindbody-widget-test">
+    <!-- Widget will be rendered here -->
+  </div>
+  
+  <script>
+    // Initialize and render a widget once the script loads
+    document.addEventListener('DOMContentLoaded', function() {
+      // Check if MindbodyWidgets is available
+      if (window.MindbodyWidgets) {
+        window.MindbodyWidgets.init({ debug: true })
+          .then(() => {
+            // Render the HelloWorld widget with some configuration
+            window.MindbodyWidgets.render('HelloWorld', {
+              targetElementId: 'mindbody-widget-test',
+              message: 'This widget should have isolated styling',
+            });
+          })
+          .catch(err => {
+            console.error('Error initializing widget:', err);
+            document.getElementById('mindbody-widget-test').innerHTML = 
+              '<div style="padding: 20px; border: 1px solid red; color: red;">Error loading widget: ' + err.message + '</div>';
+          });
+      } else {
+        document.getElementById('mindbody-widget-test').innerHTML = 
+          '<div style="padding: 20px; border: 1px solid red; color: red;">Error: MindbodyWidgets script not loaded</div>';
+      }
+    });
+  </script>
+  
+  <div class="host-content">
+    <h3>More Host Content</h3>
+    <p>This appears after the widget to show the widget doesn't affect host styling. This should also have the same awful styling as the content above.</p>
+    <a href="#">A host page link (should be pink with strikethrough)</a>
+  </div>
+</body>
+</html> 

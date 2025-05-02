@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSS Isolation Test</title>
+  <!-- Add some intentionally invasive host page styling -->
+  <style>
+    /* Invasive host page styling */
+    body {
+      font-family: 'Comic Sans MS', cursive;
+      color: purple;
+      background-color: #ffcccc;
+    }
+    
+    /* Override button styles */
+    button {
+      border-radius: 0;
+      background-color: orange;
+      color: black;
+      border: 3px dashed red;
+      font-size: 24px;
+      text-transform: uppercase;
+    }
+    
+    /* Override headings */
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Impact', sans-serif;
+      color: green;
+      text-transform: uppercase;
+    }
+    
+    /* Override links */
+    a {
+      color: pink;
+      text-decoration: line-through;
+      font-weight: bold;
+    }
+    
+    /* Add !important to make it harder to override */
+    div {
+      padding: 50px !important;
+      margin: 50px !important;
+      border: 5px dotted blue !important;
+    }
+  </style>
+</head>
+<body>
+  <h1>Host Page with Invasive Styling</h1>
+  <p>This page has intentionally invasive styling to test our CSS isolation.</p>
+  
+  <div>
+    <h2>Host Page Content</h2>
+    <p>This is normal host page content with the site's styling.</p>
+    <button>Host Button</button>
+  </div>
+  
+  <!-- Include the Mindbody Widgets embed script -->
+  <script src="/embed.js"></script>
+  
+  <!-- This is where our isolated widget will render -->
+  <div id="mindbody-widget-test"></div>
+  
+  <script>
+    // Initialize and render a widget once the script loads
+    MindbodyWidgets.init({ debug: true })
+      .then(() => {
+        // Render the HelloWorld widget with some configuration
+        MindbodyWidgets.render('HelloWorld', {
+          targetElementId: 'mindbody-widget-test',
+          message: 'This widget should have isolated styling',
+        });
+      })
+      .catch(err => {
+        console.error('Error initializing widget:', err);
+      });
+  </script>
+  
+  <div>
+    <h3>More Host Content</h3>
+    <p>This appears after the widget to show the widget doesn't affect host styling.</p>
+    <a href="#">A host page link</a>
+  </div>
+</body>
+</html> 

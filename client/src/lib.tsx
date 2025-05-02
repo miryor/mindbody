@@ -7,6 +7,9 @@ import WidgetRoot from './WidgetRoot'; // The wrapper component
 import { WidgetConfig, WidgetRegistry } from './types/widgetConfig';
 import { WidgetProvider } from './context/WidgetContext';
 
+// Import CSS isolation styles
+import './styles/isolation.css';
+
 // Import Widgets
 import * as widgets from './widgets';
 

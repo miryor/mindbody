@@ -1,0 +1,145 @@
+/**
+ * Widget CSS isolation
+ * These styles ensure that widgets are isolated from host page styling.
+ * We use a combination of CSS techniques including Shadow DOM.
+ */
+
+/* 
+ * Note: Most of these styles are now added directly to the Shadow DOM 
+ * in WidgetRoot.tsx for complete isolation. We keep this file for
+ * reference and fallback scenarios.
+ */
+
+/* The container that holds our shadow DOM */
+.mindbody-widget-container {
+  display: block;
+  width: 100%;
+  /* No other styling - all styling happens inside the shadow DOM */
+}
+
+/* Styles for non-shadow DOM fallback */
+.mindbody-widget-scope {
+  all: initial !important;
+  display: block !important;
+  
+  /* Core typography reset */
+  font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+  font-weight: normal !important;
+  text-align: left !important;
+  color: #333 !important;
+  
+  /* Box model reset */
+  box-sizing: border-box !important;
+  max-width: 100% !important;
+  
+  /* Prevent inheritance from host page */
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  
+  /* Background isolation */
+  background: none !important;
+}
+
+/* Ensure all elements within the widget follow our box model */
+.mindbody-widget-scope * {
+  box-sizing: border-box !important;
+  color: #333 !important; /* Force all text to our color */
+}
+
+/* Prevent host page CSS from affecting our buttons */
+.mindbody-widget-scope button {
+  all: unset;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  text-align: center !important;
+  display: inline-block !important;
+  color: #333 !important;
+}
+
+/* Ensure forms aren't affected by host styling */
+.mindbody-widget-scope input,
+.mindbody-widget-scope select,
+.mindbody-widget-scope textarea {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  padding: 8px !important;
+  border: 1px solid #ccc !important;
+  border-radius: 4px !important;
+  background-color: #fff !important;
+  color: #333 !important;
+}
+
+/* Reset tables completely */
+.mindbody-widget-scope table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+}
+
+.mindbody-widget-scope table th,
+.mindbody-widget-scope table td {
+  border: 1px solid #ddd !important;
+  padding: 8px !important;
+  color: #333 !important;
+}
+
+/* Ensure links are styled properly */
+.mindbody-widget-scope a {
+  color: #006bb6 !important; /* Mindbody blue */
+  text-decoration: none !important;
+}
+
+.mindbody-widget-scope a:hover {
+  text-decoration: underline !important;
+}
+
+/* Ensure standard typography elements have proper spacing */
+.mindbody-widget-scope h1,
+.mindbody-widget-scope h2,
+.mindbody-widget-scope h3,
+.mindbody-widget-scope h4,
+.mindbody-widget-scope h5,
+.mindbody-widget-scope h6 {
+  margin-top: 0 !important;
+  margin-bottom: 0.5em !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  color: #333 !important;
+  font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif !important;
+  text-transform: none !important;
+}
+
+.mindbody-widget-scope p {
+  margin-top: 0 !important;
+  margin-bottom: 1em !important;
+  color: #333 !important;
+  font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif !important;
+}
+
+/* Override MUI specific components */
+.mindbody-widget-scope .MuiTypography-root {
+  color: #333 !important;
+  font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif !important;
+}
+
+.mindbody-widget-scope .MuiButton-root {
+  color: inherit !important; /* Will use the color defined in the theme */
+}
+
+/* Ensure lists are reset */
+.mindbody-widget-scope ul,
+.mindbody-widget-scope ol {
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style-type: none !important;
+}
+
+/* Reset media to be responsive */
+.mindbody-widget-scope img,
+.mindbody-widget-scope video {
+  max-width: 100% !important;
+  height: auto !important;
+} 
