@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mindbody Widgets - Embedding Test</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+    }
+    h1 { color: #1976d2; margin-top: 0; }
+    h2 { 
+      color: #0d47a1; 
+      margin-top: 30px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    code {
+      font-family: 'Courier New', Courier, monospace;
+      background: #f0f0f0;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    .widget-container {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 20px;
+      margin: 20px 0;
+      background: #fafafa;
+    }
+    button {
+      background: #1976d2;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #1565c0;
+    }
+    .widget-controls {
+      margin: 15px 0;
+      padding: 10px;
+      background: #e3f2fd;
+      border-radius: 4px;
+    }
+    .example {
+      margin-bottom: 30px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mindbody Widgets - Embedding Test</h1>
+  
+  <p>This page demonstrates how to embed and use Mindbody widgets on your website. There are multiple ways to embed widgets:</p>
+  
+  <h2>Example 1: Manual Initialization</h2>
+  <div class="example">
+    <p>Manually initialize the widget library and render a specific widget:</p>
+    <pre><code>// Initialize the library with a specific version
+MindbodyWidgets.init({
+  baseUrl: 'http://localhost:3000',
+  debug: true,
+  version: '0.1.0'  // Use versioned UMD file
+});
+
+// Render a widget
+MindbodyWidgets.render('HelloWorld', {
+  targetElementId: 'widget-example-1'
+});</code></pre>
+    
+    <div class="widget-container">
+      <div id="widget-example-1"></div>
+      
+      <div class="widget-controls">
+        <button onclick="loadExample1()">Load Widget</button>
+        <button onclick="unloadExample1()">Unload Widget</button>
+      </div>
+    </div>
+  </div>
+  
+  <h2>Example 2: Auto-Initialization with Data Attributes</h2>
+  <div class="example">
+    <p>Use data attributes to automatically initialize and render widgets:</p>
+    <pre><code>&lt;div id="widget-example-2" 
+  data-mindbody-widget="HelloWorld" 
+  data-widget-theme="light"
+  data-widget-studioId="12345"&gt;&lt;/div&gt;</code></pre>
+    
+    <div class="widget-container">
+      <div id="widget-example-2" 
+           data-mindbody-widget="HelloWorld" 
+           data-widget-theme="light"
+           data-widget-studioId="12345"></div>
+    </div>
+    
+    <p><strong>Note:</strong> Auto-initialization requires the embedding script to have the <code>data-mindbody-widgets-auto-init</code> attribute.</p>
+  </div>
+  
+  <h2>Example 3: Multiple Widgets on One Page</h2>
+  <div class="example">
+    <p>Render multiple widgets with different configurations:</p>
+    
+    <div class="widget-container">
+      <div id="widget-example-3a"></div>
+      <div id="widget-example-3b"></div>
+      
+      <div class="widget-controls">
+        <button onclick="loadExample3()">Load Multiple Widgets</button>
+        <button onclick="unloadExample3()">Unload All</button>
+      </div>
+    </div>
+  </div>
+  
+  <h2>Example 4: Updating Widget Configuration</h2>
+  <div class="example">
+    <p>Update a widget's configuration dynamically:</p>
+    
+    <div class="widget-container">
+      <div id="widget-example-4"></div>
+      
+      <div class="widget-controls">
+        <button onclick="loadExample4()">Load Widget</button>
+        <button onclick="updateExample4()">Update Config</button>
+        <button onclick="unloadExample4()">Unload Widget</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Load the embedding script -->
+  <script src="embed.js" data-mindbody-widgets-auto-init data-mindbody-widgets-config='{"debug":true, "version":"0.1.0"}'></script>
+  
+  <!-- Add a small delay before executing the example code -->
+  <script>
+    // Wait for DOMContentLoaded to ensure embed.js is fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      // Example 1: Manual initialization
+      let example1Instance = null;
+      
+      window.loadExample1 = function() {
+        if (!example1Instance) {
+          // Initialize if not already initialized
+          MindbodyWidgets.init({
+            baseUrl: 'http://localhost:3000',
+            debug: true,
+            version: '0.1.0'  // Use versioned UMD file
+          }).then(() => {
+            // Render the widget
+            return MindbodyWidgets.render('HelloWorld', {
+              targetElementId: 'widget-example-1',
+              theme: 'dark'
+            });
+          }).then(instance => {
+            example1Instance = instance;
+            console.log('Example 1 loaded:', instance);
+          }).catch(error => {
+            console.error('Failed to load example 1:', error);
+          });
+        }
+      };
+      
+      window.unloadExample1 = function() {
+        if (example1Instance) {
+          MindbodyWidgets.unmount('widget-example-1');
+          example1Instance = null;
+        }
+      };
+      
+      // Example 3: Multiple widgets
+      let example3Instances = [];
+      
+      window.loadExample3 = function() {
+        Promise.all([
+          MindbodyWidgets.render('HelloWorld', {
+            targetElementId: 'widget-example-3a',
+            theme: 'light'
+          }),
+          MindbodyWidgets.render('HelloWorld', {
+            targetElementId: 'widget-example-3b',
+            theme: 'dark'
+          })
+        ]).then(instances => {
+          example3Instances = instances;
+          console.log('Example 3 loaded:', instances);
+        }).catch(error => {
+          console.error('Failed to load example 3:', error);
+        });
+      };
+      
+      window.unloadExample3 = function() {
+        MindbodyWidgets.unmount('widget-example-3a');
+        MindbodyWidgets.unmount('widget-example-3b');
+        example3Instances = [];
+      };
+      
+      // Example 4: Updating configuration
+      let example4Instance = null;
+      
+      window.loadExample4 = function() {
+        MindbodyWidgets.render('HelloWorld', {
+          targetElementId: 'widget-example-4',
+          theme: 'light',
+          message: 'Original configuration'
+        }).then(instance => {
+          example4Instance = instance;
+          console.log('Example 4 loaded:', instance);
+        }).catch(error => {
+          console.error('Failed to load example 4:', error);
+        });
+      };
+      
+      window.updateExample4 = function() {
+        if (example4Instance) {
+          example4Instance.update({
+            theme: 'dark',
+            message: 'Updated configuration'
+          }).then(instance => {
+            example4Instance = instance;
+            console.log('Example 4 updated:', instance);
+          }).catch(error => {
+            console.error('Failed to update example 4:', error);
+          });
+        }
+      };
+      
+      window.unloadExample4 = function() {
+        if (example4Instance) {
+          MindbodyWidgets.unmount('widget-example-4');
+          example4Instance = null;
+        }
+      };
+    });
+  </script>
+</body>
+</html> 

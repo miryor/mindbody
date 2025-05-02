@@ -57,6 +57,22 @@
 </head>
 <body>
     <h1>Mindbody Widgets Test Page</h1>
-    <div id="mindbody-app"></div>
+    <div id="mindbody-app">
+        <!-- Content will be rendered here by src/index.tsx -->
+
+        <h2>Widget 1: HelloWorld (Dev Test)</h2>
+        <div id="widget-hello-dev" class="widget-container">
+            <!-- HelloWorld widget will be rendered here -->
+        </div>
+
+        <h2>Widget 2: HelloWorld (Dev Test - Custom Message)</h2>
+        <div id="widget-hello-custom-dev" class="widget-container">
+            <!-- Another HelloWorld widget will be rendered here -->
+        </div>
+
+    </div>
+
+    <!-- Keep the original script that loads index.tsx -->
+    <script type="module" src="/src/index.tsx"></script>
 </body>
 </html> 
