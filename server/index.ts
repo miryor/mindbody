@@ -14,6 +14,10 @@ import { mindbodyApi, initializeMindbodyApiClient } from './services/mindbodyApi
 import { AuthService, initializeAuthService, getAuthServiceInstance, AuthServiceConfig, AuthorizationHeaders } from './services/authService';
 import { initializeOAuthRouter, default as oauthRouter } from './routes/oauth';
 import { sessions } from './services/sessionStore';
+import { CacheService } from './services/cacheService';
+import { mindbodyService } from './services/MindbodyService';
+import { Location } from './services/repositories/SiteRepository';
+import qs from 'qs';
 
 dotenv.config();
 
@@ -105,791 +109,563 @@ const apiRouter = express.Router();
 // If any future routes under /api/v1 should *not* use this, they need finer-grained middleware application.
 apiRouter.use(injectMindbodyHeaders);
 
-// Store session types in memory
-let sessionTypes = {
-  types: [] as any[],
-  lastFetched: null as number | null,
-};
+// Store session types - removed internal state, will use CacheService
+// let sessionTypes = {
+//   types: [] as any[],
+//   lastFetched: null as number | null,
+// };
 
-// Store locations in memory
-let locations = {
-  data: [] as any[],
-  lastFetched: null as number | null,
-};
+// Store locations - removed internal state, will use CacheService
+// let locations = {
+//   data: [] as any[],
+//   lastFetched: null as number | null,
+// };
 
-// Separate async function to fetch session types
-async function fetchSessionTypes(headers: AuthorizationHeaders) {
-  try {
-    console.log('Fetching session types...');
-    const response = await mindbodyApi.get('/site/sessiontypes', { headers });
-    sessionTypes.types = response.data.SessionTypes || [];
-    sessionTypes.lastFetched = Date.now();
-    console.log('Session types fetched successfully:', {
-      count: sessionTypes.types.length,
-    });
-  } catch (error) {
-    console.error('Error fetching session types:', error);
-    if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        data: error.response?.data
-      });
-    }
-  }
-}
+// Separate async function to fetch session types, now uses cache
+/*
+async function fetchSessionTypes(headers: AuthorizationHeaders): Promise<any[]> { ... }
+*/
 
-// Function to fetch locations
-async function fetchLocations(headers: AuthorizationHeaders): Promise<void> {
-  try {
-    console.log('Fetching locations...');
-    const response = await mindbodyApi.get('/site/locations', { headers });
-    locations.data = response.data.Locations || [];
-    locations.lastFetched = Date.now();
+// Function to fetch locations, now uses cache
+/*
+async function fetchLocations(headers: AuthorizationHeaders): Promise<any[]> { ... }
+*/
 
-    // Find first location with valid coordinates
-    const locationWithCoords = locations.data.find(loc => 
-      loc.Latitude !== undefined && 
-      loc.Longitude !== undefined && 
-      loc.Latitude !== null && 
-      loc.Longitude !== null
-    );
-
-    if (locationWithCoords) {
-      const geo = geoip.lookup(locationWithCoords.Latitude + ',' + locationWithCoords.Longitude);
-      console.log('Location timezone lookup:', {
-        location: locationWithCoords.Name,
-        latitude: locationWithCoords.Latitude,
-        longitude: locationWithCoords.Longitude,
-        timezone: geo?.timezone || 'UTC'
-      });
-    }
-
-    console.log(`Fetched ${locations.data.length} locations:`, locations.data.map(loc => ({
-      id: loc.Id,
-      name: loc.Name,
-      address: loc.Address,
-      city: loc.City,
-      state: loc.State,
-      postalCode: loc.PostalCode,
-      phone: loc.Phone,
-      timezone: loc.Timezone,
-      latitude: loc.Latitude,
-      longitude: loc.Longitude
-    })));
-  } catch (error) {
-    console.error('Error fetching locations:', error);
-    if (axios.isAxiosError(error)) {
-      console.error('Error details:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        headers: error.response?.headers
-      });
-    }
-  }
-}
-
-// Removed direct renewToken call. These fetches now rely on injectMindbodyHeaders
-// providing the necessary context for the staff token to be acquired via AuthService
-// and used by the (future) refactored mindbodyApi interceptor.
+// Fetch initial data on startup using explicitly generated staff headers
 console.log('Fetching initial server data (Session Types, Locations)...');
 (async () => {
   try {
-    // We need headers for these initial calls, but injectMindbodyHeaders doesn't run here.
-    // We need to get headers manually for startup tasks.
-    const startupHeaders = await authService.getAuthorizationHeaders(); // Get headers without request context (defaults to staff)
-    console.log('Making startup requests with staff token.');
-    await fetchSessionTypes(startupHeaders);
-    await fetchLocations(startupHeaders);
-    console.log('Initial server data fetched.');
+    const startupHeaders = await authService.getAuthorizationHeaders();
+    console.log('Making startup requests with staff token using MindbodyService.');
+    const [sessionTypes, locationsData] = await Promise.all([
+        mindbodyService.getSessionTypes(startupHeaders),
+        mindbodyService.getLocations(startupHeaders)
+    ]);
+
+    // Process locations for geoip *after* fetching
+    const locationWithCoords = locationsData.find((loc: Location) => // Add type annotation here
+        loc.Latitude !== undefined &&
+        loc.Longitude !== undefined &&
+        loc.Latitude !== null &&
+        loc.Longitude !== null
+    );
+    if (locationWithCoords) {
+      const geo = geoip.lookup(locationWithCoords.Latitude + ',' + locationWithCoords.Longitude);
+      // console.log('Location timezone lookup:', { location: locationWithCoords.Name, timezone: geo?.timezone || 'UTC' });
+    }
+
+    console.log('Initial server data fetched (via MindbodyService).');
   } catch (error) {
     console.error('Failed to fetch initial server data:', error);
-    // Consider if server should exit if initial data fetch fails
   }
 })();
 
 // API Routes
 apiRouter.post('/client/create', async (req, res) => {
-  console.log('Received client creation request:', {
-    firstName: req.body.firstName,
-    lastName: req.body.lastName,
-    email: req.body.email,
-    birthDate: req.body.birthDate
-  });
-
+  console.log('Received request for /client/create endpoint');
   try {
     const { firstName, lastName, email, birthDate } = req.body;
 
-    // Input validation
+    // Input validation (keep in route handler)
     if (!email || !email.includes('@')) {
-      console.log('Invalid email address provided');
       return res.status(400).json({ error: 'Invalid email address' });
     }
     if (!firstName || firstName.trim().length === 0) {
-      console.log('Missing first name');
       return res.status(400).json({ error: 'First name is required' });
     }
     if (!lastName || lastName.trim().length === 0) {
-      console.log('Missing last name');
       return res.status(400).json({ error: 'Last name is required' });
     }
     if (!birthDate) {
-      console.log('Missing birth date');
       return res.status(400).json({ error: 'Birth date is required' });
     }
 
-    console.log('Sending request to Mindbody API to create client');
-    const response = await mindbodyApi.post('/client/addclient', {
-      FirstName: firstName,
-      LastName: lastName,
-      Email: email,
-      Username: email,
-      ReferredBy: "Website",
-      Test: false,
-      SendAccountEmails: true,
-      Action: "Added",
-      BirthDate: birthDate
-    }, { headers: res.locals.mindbodyHeaders });
+    // Use the MindbodyService facade
+    const addClientResponse = await mindbodyService.addClient(
+        res.locals.mindbodyHeaders,
+        {
+            FirstName: firstName,
+            LastName: lastName,
+            Email: email,
+            // Username defaults to email in repository
+            BirthDate: birthDate // Assuming YYYY-MM-DD format from client
+            // Repository sets other defaults like Test, SendAccountEmails, Action
+        }
+    );
 
-    console.log('Client creation successful:', {
-      clientId: response.data.Client?.Id,
-      firstName: response.data.Client?.FirstName,
-      lastName: response.data.Client?.LastName,
-      email: response.data.Client?.Email,
-      birthDate: response.data.Client?.BirthDate
-    });
+    console.log('Successfully added client via service.');
 
-    // Clean up response data
+    // Clean up response data before sending back
     const cleanResponse = {
-      Id: response.data.Client?.Id,
-      FirstName: response.data.Client?.FirstName,
-      LastName: response.data.Client?.LastName,
-      Email: response.data.Client?.Email,
-      BirthDate: response.data.Client?.BirthDate
+      Id: addClientResponse.Client?.Id,
+      FirstName: addClientResponse.Client?.FirstName,
+      LastName: addClientResponse.Client?.LastName,
+      Email: addClientResponse.Client?.Email,
+      BirthDate: addClientResponse.Client?.BirthDate
     };
-
     res.json(cleanResponse);
+
   } catch (error) {
-    console.error('Error creating client:', error);
+    console.error('Error in /client/create route handler:', error);
     if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
-      });
       res.status(error.response?.status || 500).json({
-        error: error.response?.data?.Message || 'Failed to create client'
+        error: error.response?.data?.Message || 'Failed to create client via Mindbody'
       });
     } else {
-      console.error('Unexpected error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error processing client creation' });
     }
   }
 });
 
 apiRouter.post('/client/password-reset', async (req, res) => {
-  console.log('Received password reset request:', {
-    email: req.body.email,
-    firstName: req.body.firstName,
-    lastName: req.body.lastName
-  });
-
+  console.log('Received request for /client/password-reset endpoint');
   try {
     const { email, firstName, lastName } = req.body;
 
+    // Input validation (keep in route handler)
     if (!email || !email.includes('@')) {
-      console.log('Invalid email address provided');
       return res.status(400).json({ error: 'Invalid email address' });
     }
-
     if (!firstName || firstName.trim().length === 0) {
-      console.log('Missing first name');
       return res.status(400).json({ error: 'First name is required' });
     }
-
     if (!lastName || lastName.trim().length === 0) {
-      console.log('Missing last name');
       return res.status(400).json({ error: 'Last name is required' });
     }
 
-    console.log('Sending password reset request to Mindbody API');
-    const response = await mindbodyApi.post('/client/sendpasswordresetemail', {
-      UserEmail: email,
-      UserFirstName: firstName,
-      UserLastName: lastName
-    }, { headers: res.locals.mindbodyHeaders });
+    // Use the MindbodyService facade
+    await mindbodyService.sendPasswordResetEmail(
+        res.locals.mindbodyHeaders,
+        { UserEmail: email, UserFirstName: firstName, UserLastName: lastName }
+    );
 
-    console.log('Password reset email sent successfully');
+    console.log('Successfully triggered password reset email via service.');
 
-    // Clean up response data
-    const cleanResponse = {
-      success: true,
-      message: 'Password reset email sent successfully'
-    };
+    // Send a generic success response
+    res.json({ success: true, message: 'Password reset email initiated successfully' });
 
-    res.json(cleanResponse);
   } catch (error) {
-    console.error('Error sending password reset:', error);
+    console.error('Error in /client/password-reset route handler:', error);
     if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
-      });
       res.status(error.response?.status || 500).json({
-        error: error.response?.data?.Message || 'Failed to send password reset email'
+        error: error.response?.data?.Message || 'Failed to send password reset email via Mindbody'
       });
     } else {
-      console.error('Unexpected error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error processing password reset' });
     }
   }
 });
 
 apiRouter.get('/classes', async (req, res) => {
-  console.log('Received request for classes');
+  console.log('Received request for /classes endpoint');
   try {
-    const sessionId = req.cookies.sessionId;    
-    if (!sessionId) {
-      return res.status(401).json({ error: 'No active session' });
-    }
+    // Session check remains
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
     const session = sessions.get(sessionId);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
-    }
+    if (!session) { return res.status(401).json({ error: 'Invalid session' }); }
 
     const tz = session.timezone;
-    const { startDate, endDate } = req.query;
-    
+    const { startDate, endDate, limit, offset } = req.query;
+
     if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'startDate and endDate are required' });
+      return res.status(400).json({ error: 'startDate and endDate query parameters are required' });
     }
 
-    // Format dates for Mindbody API
-    const formattedStartDate = formatDateWithTimezone(parseDate(startDate as string, tz), tz);
-    const formattedEndDate = formatDateWithTimezone(parseDate(endDate as string, tz), tz);
+    // Use the MindbodyService facade
+    const classesData = await mindbodyService.getClasses(
+        res.locals.mindbodyHeaders,
+        startDate as string,
+        endDate as string,
+        tz,
+        { limit: limit ? parseInt(limit as string) : undefined, offset: offset ? parseInt(offset as string) : undefined }
+    );
 
-    console.log('Fetching classes from Mindbody API with dates:', {
-      requestStartDate: startDate,
-      requestEndDate: endDate,
-      tz: tz,
-      startDate: formattedStartDate,
-      endDate: formattedEndDate
-    });
+    // No need for detailed logging here, repository handles it
+    console.log('Successfully retrieved class data via service.');
 
-    const response = await mindbodyApi.get('/class/classes', {
-      params: {
-        StartDateTime: formattedStartDate,
-        EndDateTime: formattedEndDate,
-        CrossRegionalLookup: true,
-        HideCanceledClasses: false,
-        HideRelatedPrograms: false,
-        IncludeLocation: true,
-        IncludeSemesterId: true,
-        IncludeWaitlistAvailable: true,
-        Limit: 100,
-        Offset: 0,
-        ShowPublicOnly: false,
-        CrossLocationLookup: true
-      },
-      headers: res.locals.mindbodyHeaders
-    });
+    // Send the data obtained from the repository
+    res.json(classesData);
 
-    // Log response metadata
-    console.log('Classes API response metadata:', {
-      statusCode: response.status,
-      totalResults: response.data.TotalResults,
-      paginationResponse: response.data.PaginationResponse,
-      topLevelFields: Object.keys(response.data),
-    });
-    
-    // Log detailed information about first class
-    if (response.data.Classes && response.data.Classes.length > 0) {
-      const firstClass = response.data.Classes[0];
-      console.log('Complete first class document structure:');
-      console.log(JSON.stringify(firstClass, null, 2));
-      
-      // Log keys at each level of nesting
-      console.log('First class document fields:', Object.keys(firstClass));
-      
-      // Log ClassDescription fields if present
-      if (firstClass.ClassDescription) {
-        console.log('ClassDescription fields:', Object.keys(firstClass.ClassDescription));
-      }
-      
-      // Log Staff fields if present
-      if (firstClass.Staff) {
-        console.log('Staff fields:', Object.keys(firstClass.Staff));
-      }
-      
-      // Log Location fields if present
-      if (firstClass.Location) {
-        console.log('Location fields:', Object.keys(firstClass.Location));
-      }
-    }
-
-    res.json(response.data);
   } catch (error) {
-    console.error('Error fetching classes:', error);
+    // Standardized error logging and response
+    console.error('Error in /classes route handler:', error);
+    // Check if it's an Axios error passed up from the repository
     if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
-      });
-      res.status(error.response?.status || 500).json({
-        error: error.response?.data?.Message || 'Failed to fetch classes'
-      });
+        res.status(error.response?.status || 500).json({
+            error: error.response?.data?.Message || 'Failed to fetch classes from Mindbody'
+        });
     } else {
-      console.error('Unexpected error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: 'Internal server error processing classes request' });
     }
   }
 });
 
 apiRouter.get('/appointments/bookableitems', async (req, res) => {
+  console.log('Received request for /appointments/bookableitems endpoint');
   try {
+    // Session check remains
     const sessionId = req.cookies.sessionId;
-    if (!sessionId) {
-      return res.status(401).json({ error: 'No active session' });
-    }
+    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
     const session = sessions.get(sessionId);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
-    }
+    if (!session) { return res.status(401).json({ error: 'Invalid session' }); }
 
     const tz = session.timezone;
-    const { startDate, endDate, sessionTypeIds } = req.query;
-    
+    const { startDate, endDate, sessionTypeIds, staffIds, locationIds, limit, offset } = req.query;
+
     if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'startDate and endDate are required' });
+      return res.status(400).json({ error: 'startDate and endDate query parameters are required' });
     }
 
-    // Format dates for Mindbody API
-    const formattedStartDate = formatDateWithTimezone(parseDate(startDate as string, tz), tz);
-    const formattedEndDate = formatDateWithTimezone(parseDate(endDate as string, tz), tz);
+    // Helper function to parse comma-separated IDs from query string
+    // Explicitly type the input parameter
+    const parseIds = (ids?: string | string[] | qs.ParsedQs | qs.ParsedQs[]): number[] | undefined => {
+        if (!ids) return undefined;
+        // Handle array case from qs parsing which might contain mixed types
+        const idString = Array.isArray(ids) ? ids.map(String).join(',') : String(ids);
+        return idString.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    };
 
-    // Get all session type IDs if none provided
-    const typeIds = sessionTypeIds || sessionTypes.types.map(type => type.Id);
+    // Use the MindbodyService facade
+    const bookableItemsData = await mindbodyService.getBookableItems(
+        res.locals.mindbodyHeaders,
+        startDate as string,
+        endDate as string,
+        tz,
+        {
+            sessionTypeIds: parseIds(sessionTypeIds as string | string[] | qs.ParsedQs | qs.ParsedQs[] | undefined),
+            staffIds: parseIds(staffIds as string | string[] | qs.ParsedQs | qs.ParsedQs[] | undefined),
+            locationIds: parseIds(locationIds as string | string[] | qs.ParsedQs | qs.ParsedQs[] | undefined),
+            limit: limit ? parseInt(limit as string) : undefined,
+            offset: offset ? parseInt(offset as string) : undefined
+        }
+    );
 
-    console.log('Fetching appointments from Mindbody API with dates:', {
-      requestStartDate: startDate,
-      requestEndDate: endDate,
-      tz: tz,
-      startDate: formattedStartDate,
-      endDate: formattedEndDate,
-      sessionTypeIds: typeIds
-    });
+    console.log('Successfully retrieved bookable items data via service.');
+    res.json(bookableItemsData);
 
-    const response = await mindbodyApi.get('/appointment/bookableitems', {
-      params: {
-        StartDate: formattedStartDate,
-        EndDate: formattedEndDate,
-        SessionTypeIds: typeIds,
-        StaffIds: [], // Optional: filter by staff
-        LocationIds: [], // Optional: filter by locations
-        Limit: 100
-      },
-      headers: res.locals.mindbodyHeaders
-    });
-
-    // Log response metadata
-    console.log('Appointments API response metadata:', {
-      statusCode: response.status,
-      totalResults: response.data.TotalResults,
-      paginationResponse: response.data.PaginationResponse,
-      topLevelFields: Object.keys(response.data),
-    });
-    
-    // Log detailed information about first appointment
-    if (response.data.BookableItems && response.data.BookableItems.length > 0) {
-      const firstAppointment = response.data.BookableItems[0];
-      console.log('Complete first appointment document structure:');
-      console.log(JSON.stringify(firstAppointment, null, 2));
-      
-      // Log keys at each level of nesting
-      console.log('First appointment document fields:', Object.keys(firstAppointment));
-      
-      // Log SessionType fields if present
-      if (firstAppointment.SessionType) {
-        console.log('SessionType fields:', Object.keys(firstAppointment.SessionType));
-      }
-      
-      // Log Staff fields if present
-      if (firstAppointment.Staff) {
-        console.log('Staff fields:', Object.keys(firstAppointment.Staff));
-      }
-      
-      // Log Location fields if present
-      if (firstAppointment.Location) {
-        console.log('Location fields:', Object.keys(firstAppointment.Location));
-      }
-    }
-
-    res.json(response.data);
   } catch (error) {
-    console.error('Error fetching appointments:', error);
+    console.error('Error in /appointments/bookableitems route handler:', error);
     if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
-      });
       res.status(error.response?.status || 500).json({
-        error: error.response?.data?.Message || 'Failed to fetch appointments'
+        error: error.response?.data?.Message || 'Failed to fetch bookable items from Mindbody'
       });
     } else {
-      console.error('Unexpected error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error processing bookable items request' });
     }
   }
 });
 
-// Products endpoint
+// Products endpoint - Refactored to use MindbodyService
 apiRouter.get('/products', async (req, res) => {
+  console.log('Received request for /products endpoint');
   try {
+    // Session check remains
     const sessionId = req.cookies.sessionId;
-    if (!sessionId) {
-      return res.status(401).json({ error: 'No active session' });
-    }
+    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
     const session = sessions.get(sessionId);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
-    }
+    if (!session) { return res.status(401).json({ error: 'Invalid session' }); }
 
-    console.log('Fetching products from Mindbody API');
-    const response = await mindbodyApi.get('/sale/products', {
-      params: {
-        SearchText: '',
-        Limit: 100,
-        Offset: 0,
-        IncludeInactive: false
-      },
-      headers: res.locals.mindbodyHeaders
-    });
+    // Extract options (add more if needed by repository)
+    const { searchText, limit, offset, includeInactive } = req.query;
 
-    // Log response metadata
-    console.log('Products API response metadata:', {
-      statusCode: response.status,
-      totalResults: response.data.TotalResults,
-      paginationResponse: response.data.PaginationResponse,
-      topLevelFields: Object.keys(response.data),
-    });
-    
-    // Log detailed information about first product
-    if (response.data.Products && response.data.Products.length > 0) {
-      const firstProduct = response.data.Products[0];
-      console.log('Complete first product document structure:');
-      console.log(JSON.stringify(firstProduct, null, 2));
-      
-      console.log('First product document fields:', Object.keys(firstProduct));
-    }
+    // Use the MindbodyService facade
+    const productsData = await mindbodyService.getProducts(
+        res.locals.mindbodyHeaders,
+        {
+            searchText: searchText as string | undefined,
+            limit: limit ? parseInt(limit as string) : undefined,
+            offset: offset ? parseInt(offset as string) : undefined,
+            includeInactive: includeInactive === 'true'
+        }
+    );
 
-    res.json(response.data);
+    console.log('Successfully retrieved product data via service.');
+
+    // Send the data obtained from the repository
+    res.json(productsData);
+
   } catch (error) {
-    console.error('Error fetching products:', error);
+    console.error('Error in /products route handler:', error);
     if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
+      res.status(error.response?.status || 500).json({
+        error: error.response?.data?.Message || 'Failed to fetch products from Mindbody'
       });
+    } else {
+      res.status(500).json({ error: 'Internal server error processing products request' });
     }
-    res.status(500).json({ error: 'Failed to fetch products' });
   }
 });
 
-// Purchase endpoint
+// Purchase endpoint - Refactored to use MindbodyService
 apiRouter.post('/products/purchase', async (req, res) => {
+  console.log('Received request for /products/purchase endpoint');
   try {
+    // Session check remains
     const sessionId = req.cookies.sessionId;
-    if (!sessionId) {
-      return res.status(401).json({ error: 'No active session' });
-    }
+    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
     const session = sessions.get(sessionId);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
+    if (!session || !session.clientInfo) { // Ensure clientInfo exists
+        return res.status(401).json({ error: 'Invalid or incomplete session' });
     }
 
     const { productId, quantity } = req.body;
-    if (!productId || !quantity) {
-      return res.status(400).json({ error: 'productId and quantity are required' });
+    if (!productId || quantity === undefined || quantity === null) { // Check quantity presence
+      return res.status(400).json({ error: 'productId and quantity are required in the request body' });
     }
 
-    console.log('Processing purchase:', { productId, quantity });
-    const response = await mindbodyApi.post('/sale/checkout', {
-      ProductId: productId,
-      Quantity: quantity,
-      ClientId: session.clientInfo.Id
-    }, { headers: res.locals.mindbodyHeaders });
+    const parsedQuantity = parseInt(quantity);
+    if (isNaN(parsedQuantity) || parsedQuantity <= 0) {
+        return res.status(400).json({ error: 'Invalid quantity specified' });
+    }
 
-    console.log('Purchase processed successfully:', response.data);
-    res.json(response.data);
+    // Use the MindbodyService facade
+    const purchaseData = await mindbodyService.purchaseProduct(
+        res.locals.mindbodyHeaders,
+        { clientId: session.clientInfo.Id, productId: productId as string, quantity: parsedQuantity }
+    );
+
+    console.log('Successfully processed product purchase via service.');
+    res.json(purchaseData);
+
   } catch (error) {
-    console.error('Error processing purchase:', error);
+    console.error('Error in /products/purchase route handler:', error);
     if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
+      res.status(error.response?.status || 500).json({
+        error: error.response?.data?.Message || 'Failed to process product purchase via Mindbody'
       });
+    } else {
+      res.status(500).json({ error: 'Internal server error processing product purchase' });
     }
-    res.status(500).json({ error: 'Failed to process purchase' });
   }
 });
 
-// Gift card purchase endpoint
+// Gift card purchase endpoint - Refactored to use MindbodyService
 apiRouter.post('/products/giftcard', async (req, res) => {
+  console.log('Received request for /products/giftcard endpoint');
   try {
+    // Session check remains
     const sessionId = req.cookies.sessionId;
-    if (!sessionId) {
-      return res.status(401).json({ error: 'No active session' });
-    }
+    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
     const session = sessions.get(sessionId);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
+    if (!session || !session.clientInfo) { // Ensure clientInfo exists
+        return res.status(401).json({ error: 'Invalid or incomplete session' });
     }
 
     const { amount } = req.body;
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'Valid amount is required' });
+    if (amount === undefined || amount === null) { // Check amount presence
+      return res.status(400).json({ error: 'amount is required in the request body' });
     }
 
-    console.log('Processing gift card purchase:', { amount });
-    const response = await mindbodyApi.post('/sale/checkout', {
-      GiftCardAmount: amount,
-      ClientId: session.clientInfo.Id
-    }, { headers: res.locals.mindbodyHeaders });
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ error: 'Invalid amount specified' });
+    }
 
-    console.log('Gift card purchase processed successfully:', response.data);
-    res.json(response.data);
+    // Use the MindbodyService facade
+    const giftCardData = await mindbodyService.purchaseGiftCard(
+        res.locals.mindbodyHeaders,
+        { clientId: session.clientInfo.Id, amount: parsedAmount }
+    );
+
+    console.log('Successfully processed gift card purchase via service.');
+    res.json(giftCardData);
+
   } catch (error) {
-    console.error('Error processing gift card purchase:', error);
+    console.error('Error in /products/giftcard route handler:', error);
     if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
-      });
-    }
-    res.status(500).json({ error: 'Failed to process gift card purchase' });
-  }
-});
-
-// Add the packages endpoint under apiRouter
-apiRouter.get('/packages', async (req, res) => {
-  try {
-    const sessionId = req.cookies.sessionId;
-    if (!sessionId) {
-      return res.status(401).json({ error: 'No active session' });
-    }
-    const session = sessions.get(sessionId);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
-    }
-
-    // Get query parameters with defaults
-    const { 
-      limit = '100', 
-      offset = '0', 
-      sellOnline = 'true',
-      locationId 
-    } = req.query;
-
-    console.log('Fetching packages from Mindbody API');
-    const response = await mindbodyApi.get('/sale/packages', {
-      params: {
-        Limit: parseInt(limit as string),
-        Offset: parseInt(offset as string),
-        SellOnline: sellOnline === 'true',
-        LocationId: locationId || null
-      },
-      headers: res.locals.mindbodyHeaders
-    });
-
-    // Log response metadata
-    console.log('Packages API response metadata:', {
-      statusCode: response.status,
-      paginationResponse: response.data.PaginationResponse,
-      topLevelFields: Object.keys(response.data),
-    });
-    
-    // Log detailed information about first package
-    if (response.data.Packages && response.data.Packages.length > 0) {
-      const firstPackage = response.data.Packages[0];
-      console.log('Complete first package document structure:');
-      console.log(JSON.stringify(firstPackage, null, 2));
-      
-      console.log('First package document fields:', Object.keys(firstPackage));
-      
-      // Log Services fields if present
-      if (firstPackage.Services && firstPackage.Services.length > 0) {
-        console.log('Package Services fields:', Object.keys(firstPackage.Services[0]));
-      }
-      
-      // Log Products fields if present
-      if (firstPackage.Products && firstPackage.Products.length > 0) {
-        console.log('Package Products fields:', Object.keys(firstPackage.Products[0]));
-      }
-    }
-
-    res.json(response.data);
-  } catch (error) {
-    console.error('Error fetching packages:', error);
-    if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
-      });
       res.status(error.response?.status || 500).json({
-        error: error.response?.data?.Message || 'Failed to fetch packages'
+        error: error.response?.data?.Message || 'Failed to process gift card purchase via Mindbody'
       });
     } else {
-      console.error('Unexpected error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error processing gift card purchase' });
     }
   }
 });
 
-// Package purchase endpoint
-apiRouter.post('/packages/purchase', async (req, res) => {
+// Packages endpoint - Refactored to use MindbodyService
+apiRouter.get('/packages', async (req, res) => {
+  console.log('Received request for /packages endpoint');
   try {
+    // Session check remains
     const sessionId = req.cookies.sessionId;
-    if (!sessionId) {
-      return res.status(401).json({ error: 'No active session' });
-    }
+    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
     const session = sessions.get(sessionId);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
+    if (!session) { return res.status(401).json({ error: 'Invalid session' }); }
+
+    // Extract options
+    const { limit, offset, sellOnline, locationId } = req.query;
+
+    // Use the MindbodyService facade
+    const packagesData = await mindbodyService.getPackages(
+        res.locals.mindbodyHeaders,
+        {
+            limit: limit ? parseInt(limit as string) : undefined,
+            offset: offset ? parseInt(offset as string) : undefined,
+            sellOnline: sellOnline !== undefined ? sellOnline === 'true' : undefined, // Only pass if specified
+            locationId: locationId ? parseInt(locationId as string) : undefined
+        }
+    );
+
+    console.log('Successfully retrieved package data via service.');
+
+    // Send the data obtained from the repository
+    res.json(packagesData);
+
+  } catch (error) {
+    console.error('Error in /packages route handler:', error);
+    if (axios.isAxiosError(error)) {
+      res.status(error.response?.status || 500).json({
+        error: error.response?.data?.Message || 'Failed to fetch packages from Mindbody'
+      });
+    } else {
+      res.status(500).json({ error: 'Internal server error processing packages request' });
+    }
+  }
+});
+
+// Package purchase endpoint - Refactored to use MindbodyService
+apiRouter.post('/packages/purchase', async (req, res) => {
+  console.log('Received request for /packages/purchase endpoint');
+  try {
+    // Session check remains
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
+    const session = sessions.get(sessionId);
+    if (!session || !session.clientInfo) { // Ensure clientInfo exists
+        return res.status(401).json({ error: 'Invalid or incomplete session' });
     }
 
     const { packageId } = req.body;
-    if (!packageId) {
-      return res.status(400).json({ error: 'packageId is required' });
+    if (!packageId) { // Check packageId presence
+      return res.status(400).json({ error: 'packageId is required in the request body' });
     }
 
-    console.log('Processing package purchase:', { packageId });
-    const response = await mindbodyApi.post('/sale/checkout', {
-      PackageId: packageId,
-      ClientId: session.clientInfo.Id
-    }, { headers: res.locals.mindbodyHeaders });
+    const parsedPackageId = parseInt(packageId);
+    if (isNaN(parsedPackageId)) {
+        return res.status(400).json({ error: 'Invalid packageId specified' });
+    }
 
-    console.log('Package purchase processed successfully:', response.data);
-    res.json(response.data);
+    // Use the MindbodyService facade
+    const purchaseData = await mindbodyService.purchasePackage(
+        res.locals.mindbodyHeaders,
+        { clientId: session.clientInfo.Id, packageId: parsedPackageId }
+    );
+
+    console.log('Successfully processed package purchase via service.');
+    res.json(purchaseData);
+
   } catch (error) {
-    console.error('Error processing package purchase:', error);
+    console.error('Error in /packages/purchase route handler:', error);
     if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
+      res.status(error.response?.status || 500).json({
+        error: error.response?.data?.Message || 'Failed to process package purchase via Mindbody'
       });
+    } else {
+      res.status(500).json({ error: 'Internal server error processing package purchase' });
     }
-    res.status(500).json({ error: 'Failed to process package purchase' });
   }
 });
 
 // List services for pricing updates
 apiRouter.get('/admin/services', async (req, res) => {
+  console.log('Received request for /admin/services endpoint');
   try {
+    // Session check remains
     const sessionId = req.cookies.sessionId;
-    if (!sessionId) {
-      return res.status(401).json({ error: 'No active session' });
-    }
+    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
     const session = sessions.get(sessionId);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
-    }
+    if (!session) { return res.status(401).json({ error: 'Invalid session' }); }
+    // TODO: Add admin role check here if necessary
 
-    const { limit = '100', offset = '0', searchText = '' } = req.query;
+    const { limit, offset, searchText } = req.query;
 
-    console.log('Fetching services from Mindbody API');
-    const response = await mindbodyApi.get('/sale/services', {
-      params: {
-        Limit: parseInt(limit as string),
-        Offset: parseInt(offset as string),
-        SearchText: searchText
-      },
-      headers: res.locals.mindbodyHeaders
-    });
+    // Use MindbodyService facade
+    const servicesData = await mindbodyService.getAdminServices(
+        res.locals.mindbodyHeaders,
+        {
+            limit: limit ? parseInt(limit as string) : undefined,
+            offset: offset ? parseInt(offset as string) : undefined,
+            searchText: searchText as string | undefined
+        }
+    );
 
+    console.log('Successfully retrieved services data via service.');
+
+    // Logging of response structure can be kept if useful
     // Log response metadata
     console.log('Services API response metadata:', {
-      statusCode: response.status,
-      totalResults: response.data.Services?.length || 0,
-      paginationResponse: response.data.PaginationResponse,
-      topLevelFields: Object.keys(response.data),
+        statusCode: 200, // Assuming success if no error thrown
+        totalResults: servicesData.Services?.length || 0,
+        paginationResponse: servicesData.PaginationResponse,
+        topLevelFields: Object.keys(servicesData),
     });
-    
     // Log detailed information about first service
-    if (response.data.Services && response.data.Services.length > 0) {
-      const firstService = response.data.Services[0];
-      console.log('Complete first service document structure:');
-      console.log(JSON.stringify(firstService, null, 2));
-      
-      console.log('First service document fields:', Object.keys(firstService));
+    if (servicesData.Services && servicesData.Services.length > 0) {
+        const firstService = servicesData.Services[0];
+        // console.log('Complete first service document structure:');
+        // console.log(JSON.stringify(firstService, null, 2));
+        // console.log('First service document fields:', Object.keys(firstService));
     }
 
-    res.json(response.data);
+    res.json(servicesData);
+
   } catch (error) {
-    console.error('Error fetching services:', error);
+    console.error('Error in /admin/services route handler:', error);
     if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
-      });
+        res.status(error.response?.status || 500).json({
+            error: error.response?.data?.Message || 'Failed to fetch services from Mindbody'
+        });
+    } else {
+        res.status(500).json({ error: 'Internal server error processing services request' });
     }
-    res.status(500).json({ error: 'Failed to fetch services' });
   }
 });
 
 // Update service pricing
 apiRouter.put('/admin/services/:id', async (req, res) => {
+  console.log('Received request for /admin/services/:id endpoint');
   try {
+    // Session check remains
     const sessionId = req.cookies.sessionId;
-    if (!sessionId) {
-      return res.status(401).json({ error: 'No active session' });
-    }
+    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
     const session = sessions.get(sessionId);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
-    }
+    if (!session) { return res.status(401).json({ error: 'Invalid session' }); }
+    // TODO: Add admin role check here if necessary
 
     const { id } = req.params;
     const { price } = req.body;
 
-    if (!id) {
-      return res.status(400).json({ error: 'Service ID is required' });
-    }
-    if (price === undefined || price === null) {
-      return res.status(400).json({ error: 'Price is required' });
+    // Validation
+    if (!id) { return res.status(400).json({ error: 'Service ID parameter is required' }); }
+    if (price === undefined || price === null) { return res.status(400).json({ error: 'Price is required in the request body' }); }
+
+    const parsedId = parseInt(id);
+    const parsedPrice = parseFloat(price);
+
+    if (isNaN(parsedId) || isNaN(parsedPrice)) {
+        return res.status(400).json({ error: 'Invalid Service ID or Price format' });
     }
 
-    console.log(`Updating service ${id} with price ${price}`);
-    
-    // Format the API request according to documentation
-    const response = await mindbodyApi.put('/sale/services', {
-      Services: [
-        {
-          Id: parseInt(id),
-          Price: parseFloat(price)
-        }
-      ]
-    }, { headers: res.locals.mindbodyHeaders });
+    // Use MindbodyService facade
+    const updateResponse = await mindbodyService.updateAdminServicePrice(
+        res.locals.mindbodyHeaders,
+        parsedId,
+        parsedPrice
+    );
 
-    console.log('Service price updated successfully:', response.data);
-    res.json(response.data);
+    console.log('Successfully updated service price via service.');
+    res.json(updateResponse);
+
   } catch (error) {
-    console.error('Error updating service price:', error);
+    console.error('Error in /admin/services/:id route handler:', error);
     if (axios.isAxiosError(error)) {
-      console.error('Mindbody API error:', {
-        status: error.response?.status,
-        message: error.response?.data?.Message,
-        data: error.response?.data
-      });
+        res.status(error.response?.status || 500).json({
+            error: error.response?.data?.Message || 'Failed to update service price via Mindbody'
+        });
+    } else {
+        res.status(500).json({ error: 'Internal server error processing service update' });
     }
-    res.status(500).json({ error: 'Failed to update service price' });
   }
 });
 

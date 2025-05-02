@@ -61,7 +61,8 @@ function setupInterceptors(instance: AxiosInstance) {
 
 // Renamed and simplified initializer function
 function initializeMindbodyApiClient(config: MindbodyClientConfig) {
-    if (mindbodyApi) {
+    // Explicitly check if the instance has been assigned (is not null/undefined)
+    if (mindbodyApi != null) { 
         console.warn('Mindbody API Client is already initialized.');
         return;
     }

@@ -10,53 +10,70 @@ alwaysApply: false
 
 - **Key Directories**
   - `server/routes/`: Defines Express API routes (e.g., OAuth endpoints).
-  - `server/services/`: Contains business logic and API interaction modules.
+  - `server/services/`: Contains core services (`AuthService`, `CacheService`, `MindbodyService`).
+  - `server/services/repositories/`: Contains domain-specific repositories interacting with the Mindbody API.
   - `server/utils/`: Utility functions.
   - `server/types/`: Custom TypeScript type definitions.
-  - `server/`: Contains the main entry point (`index.ts`), configuration (`package.json`, `tsconfig.json`), and other standard Node project files.
+  - `server/`: Contains the main entry point (`index.ts`), configuration (`package.json`, `tsconfig.json`), etc.
 
-- **Core Authentication and API Client Structure (Refactored)**
-  - **Central Authentication:** [`server/services/authService.ts`](mdc:server/services/authService.ts)
-    - Manages both **Staff User Token** (using Username/Password) and **Client OAuth Tokens** (retrieved from session).
-    - Provides `getAuthorizationHeaders(req?)` method which determines the correct `Authorization`, `API-Key`, and `SiteId` headers based on request context (presence of valid client session cookie).
-    - Handles staff token renewal internally.
-    - Initialized once in [`server/index.ts`](mdc:server/index.ts) with combined configuration.
+- **Core Architecture (Post Task 2 Refactor)**
+  - **Authentication:** [`server/services/authService.ts`](mdc:server/services/authService.ts)
+    - Manages both **Staff** and **Client** tokens.
+    - Provides `getAuthorizationHeaders(req?)` called by middleware.
+  - **Header Injection:** Middleware (`injectMindbodyHeaders`) in [`server/index.ts`](mdc:server/index.ts)
+    - Calls `AuthService` to get appropriate headers (`Authorization`, `API-Key`, `SiteId`).
+    - Stores headers in `res.locals.mindbodyHeaders`.
+  - **Service Facade:** [`server/services/MindbodyService.ts`](mdc:server/services/MindbodyService.ts)
+    - Provides high-level methods (e.g., `getClasses`, `addClient`, `purchaseProduct`).
+    - Acts as the primary interface for route handlers.
+    - Coordinates calls to different repositories.
+    - May contain cross-domain logic or data aggregation.
+  - **Repositories:** [`server/services/repositories/*.ts`](mdc:server/services/repositories)
+    - Domain-specific classes (e.g., `ClassRepository`, `ProductRepository`).
+    - Encapsulate direct API calls using the `mindbodyApi` Axios instance.
+    - Accept headers (from `res.locals`) as arguments.
+    - Handle request parameters, data mapping, and specific API endpoint logic.
+    - Utilize `CacheService` where appropriate.
   - **API Client Instance:** [`server/services/mindbodyApi.ts`](mdc:server/services/mindbodyApi.ts)
-    - Exports a configured Axios instance (`mindbodyApi`).
-    - **Does NOT handle authentication internally.** Interceptors are mainly for logging.
-    - Relies on the calling code to pass the correct `headers` object obtained from `AuthService`.
-    - Initialized once in [`server/index.ts`](mdc:server/index.ts).
-  - **Header Injection:** [`server/index.ts`](mdc:server/index.ts)
-    - Middleware (`injectMindbodyHeaders`) runs for all routes under `/api/v1` (except `/api/v1/oauth`).
-    - Calls `authService.getAuthorizationHeaders(req)` and stores the result in `res.locals.mindbodyHeaders`.
-  - **API Call Execution:** (Currently within route handlers in [`server/index.ts`](mdc:server/index.ts))
-    - Calls like `mindbodyApi.get(url, { headers: res.locals.mindbodyHeaders })` use the headers prepared by the middleware.
-    - Startup API calls (e.g., `fetchSessionTypes`) manually get staff headers from `AuthService` and pass them.
+    - Exports a simple configured Axios instance (`mindbodyApi`) with basic logging interceptors.
+    - Does **not** handle authentication itself.
+  - **Caching:** [`server/services/cacheService.ts`](mdc:server/services/cacheService.ts)
+    - Simple wrapper around `node-cache` for in-memory caching.
+    - Used by repositories to cache API responses (e.g., locations, session types, products, packages).
+  - **Routing:** [`server/index.ts`](mdc:server/index.ts)
+    - Initializes services and configurations.
+    - Defines API routes under `/api/v1`.
+    - Applies `injectMindbodyHeaders` middleware.
+    - Route handlers perform validation, call `MindbodyService` methods, and handle responses/errors.
 
 - **Client OAuth Flow Specifics**
   - **Route Definitions:** [`server/routes/oauth.ts`](mdc:server/routes/oauth.ts)
-    - Handles `/callback`, `/session`, `/logout-callback` endpoints.
-    - Exchanges authorization code for tokens using `axios` directly (does not use `mindbodyApi` instance).
-    - Fetches client info (`/platform/accounts/v1/me`) using `axios` and the *client's* access token.
-  - **Session Management:**
-    - Client tokens and user info stored in [`server/services/sessionStore.ts`](mdc:server/services/sessionStore.ts) (in-memory `Map`).
-    - `sessionId` cookie links browser to server-side session.
+    - Handles OAuth callbacks and session checks (`/callback`, `/session`, `/logout-callback`).
+    - Uses `axios` directly for token exchange and fetching client info (`/platform/accounts/v1/me`).
+  - **Session Management:** [`server/services/sessionStore.ts`](mdc:server/services/sessionStore.ts)
+    - Simple in-memory `Map` storing session data keyed by `sessionId` cookie.
 
-- **Key Files Summary (Post-Refactor)**
-  - [`server/index.ts`](mdc:server/index.ts): Initializes `AuthService`, `MindbodyApiClient`, `OAuthRouter`. Defines API routes, applies `injectMindbodyHeaders` middleware, calls Mindbody API using injected headers.
-  - [`server/services/authService.ts`](mdc:server/services/authService.ts): Central hub for retrieving correct authentication headers (Staff or Client).
-  - [`server/services/mindbodyApi.ts`](mdc:server/services/mindbodyApi.ts): Provides configured Axios instance (`mindbodyApi`) for making API calls; relies on externally provided headers for auth.
-  - [`server/routes/oauth.ts`](mdc:server/routes/oauth.ts): Handles client OAuth redirects, token exchange, and session status checks.
-  - [`server/services/sessionStore.ts`](mdc:server/services/sessionStore.ts): Simple in-memory session storage.
-  - [`server/package.json`](mdc:server/package.json): Lists dependencies.
-  - [`server/README.md`](mdc:server/README.md): Basic documentation (may need updates).
+- **Key Files Summary (Final Task 2 Structure)**
+  - [`server/index.ts`](mdc:server/index.ts): Initialization, Routing, Middleware Application, Calls to `MindbodyService`.
+  - [`server/services/MindbodyService.ts`](mdc:server/services/MindbodyService.ts): Facade orchestrating repository calls.
+  - [`server/services/authService.ts`](mdc:server/services/authService.ts): Centralized authentication logic.
+  - [`server/services/cacheService.ts`](mdc:server/services/cacheService.ts): Caching utility.
+  - [`server/services/mindbodyApi.ts`](mdc:server/services/mindbodyApi.ts): Basic Axios client instance.
+  - `server/services/repositories/*.ts`: Domain-specific API interactions & caching.
+  - [`server/routes/oauth.ts`](mdc:server/routes/oauth.ts): Client OAuth flow handling.
+  - [`server/services/sessionStore.ts`](mdc:server/services/sessionStore.ts): Session storage.
 
-- **Current State & Next Steps**
-  - Core authentication logic is now centralized in `AuthService`.
-  - API calls in `index.ts` correctly use headers based on context.
-  - **Next Steps (Task 2):**
-    - Implement Caching/Rate Limiting (Subtask 2.3).
-    - Refactor API calls from `index.ts` into domain-specific Repositories (Subtask 2.4).
-    - Create a Service Facade (Subtask 2.5).
+- **Current State**
+  - Task 2 (Implement Mindbody API connection layer) is complete.
+  - Core logic is refactored into Services and Repositories.
+  - Authentication is centralized.
+  - Caching is implemented for key read-heavy endpoints.
+  - Rate limiting was deferred (Subtask 2.3).
 
-This rule reflects the current refactored state of the server's authentication and API interaction.
+- **Next Steps**
+  - Proceed with subsequent high-level tasks (e.g., Task 3: Widget Implementation).
+  - Add JSDoc documentation to services/repositories.
+  - Consider enhancing `sessionStore` (e.g., Redis) if scalability requires it.
+  - Revisit rate limiting if API usage becomes a concern.
+
+This rule reflects the final refactored state after completing Task 2.
