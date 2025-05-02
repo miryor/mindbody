@@ -9,9 +9,9 @@
 (function() {
   // Configuration
   const DEFAULT_CONFIG = {
-    baseUrl: 'http://localhost:3000', // Default base URL for loading the widget library
-    version: 'latest',                // Version of the widget library to load
-    debug: false                      // Enable/disable debug logging
+    baseUrl: '', // Default to same location as script
+    version: 'latest',      // Version of the widget library to load
+    debug: false            // Enable/disable debug logging
   };
 
   // Global namespace for the Mindbody Widgets
@@ -28,6 +28,19 @@
     init: function(config = {}) {
       // Merge provided config with defaults
       this._config = {...DEFAULT_CONFIG, ...config};
+      
+      // If baseUrl is empty, use the script's location
+      if (!this._config.baseUrl) {
+        // Find our own script
+        const scripts = document.getElementsByTagName('script');
+        for (let i = 0; i < scripts.length; i++) {
+          const src = scripts[i].src;
+          if (src && src.indexOf('embed.js') > -1) {
+            this._config.baseUrl = src.substring(0, src.lastIndexOf('/'));
+            break;
+          }
+        }
+      }
       
       // Enable debug logging if specified
       if (this._config.debug) {

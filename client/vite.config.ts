@@ -39,6 +39,8 @@ export default defineConfig({
           react: 'React',
           'react-dom': 'ReactDOM',
         },
+        // Fix named and default exports issue
+        exports: 'named',
       },
     },
     outDir: 'dist/lib', // Output directory for the library build

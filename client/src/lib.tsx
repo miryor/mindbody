@@ -5,9 +5,10 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import WidgetRoot from './WidgetRoot'; // The wrapper component
 import { WidgetConfig, WidgetRegistry } from './types/widgetConfig';
+import { WidgetProvider } from './context/WidgetContext';
 
 // Import Widgets
-import HelloWorldWidget from './widgets/HelloWorldWidget';
+import * as widgets from './widgets';
 
 console.log('Mindbody Widgets Library Loaded');
 
@@ -22,12 +23,13 @@ const DEFAULT_CONFIG = {
 let _instances: Record<string, any> = {};
 let _config = { ...DEFAULT_CONFIG };
 
-// Basic Widget Registry
+// Widget Registry - automatically populated from the widgets directory
 const registry: WidgetRegistry = {
-  HelloWorld: HelloWorldWidget,
+  HelloWorld: widgets.HelloWorldWidget,
+  Scheduler: widgets.SchedulerWidget,
+  Retail: widgets.RetailWidget,
+  Packages: widgets.PackagesWidget,
   // Register other widgets here as they are created
-  // Schedule: ScheduleWidget,
-  // Auth: AuthWidget,
 };
 
 /**
@@ -46,7 +48,12 @@ export const init = (config = {}) => {
   return Promise.resolve(); // For API compatibility with embed.js
 };
 
-// Function to render a specific widget
+/**
+ * Render a specific widget
+ * @param widgetName - Name of the widget to render
+ * @param config - Widget configuration
+ * @returns A function to unmount the widget
+ */
 export const renderWidget = (widgetName: string, config: WidgetConfig) => {
   const WidgetComponent = registry[widgetName];
   if (!WidgetComponent) {
@@ -65,17 +72,23 @@ export const renderWidget = (widgetName: string, config: WidgetConfig) => {
   root.render(
     <React.StrictMode>
       <WidgetRoot> {/* Apply theme and isolation */}
-        <WidgetComponent config={config} />
+        <WidgetProvider widgetName={widgetName} config={config}>
+          <WidgetComponent config={config} />
+        </WidgetProvider>
       </WidgetRoot>
     </React.StrictMode>
   );
 
-  console.log(`Widget "${widgetName}" rendered into element "#${config.targetElementId}"`);
+  if (_config.debug) {
+    console.log(`Widget "${widgetName}" rendered into element "#${config.targetElementId}"`);
+  }
 
   // Return an unmount function
   return () => {
     root.unmount();
-    console.log(`Widget "${widgetName}" unmounted from element "#${config.targetElementId}"`);
+    if (_config.debug) {
+      console.log(`Widget "${widgetName}" unmounted from element "#${config.targetElementId}"`);
+    }
   };
 };
 
@@ -187,11 +200,24 @@ export const destroy = () => {
   _config = { ...DEFAULT_CONFIG };
 };
 
-// Optional: Initialize widgets based on DOM attributes or a global config
-// function autoInitialize() {
-//   // Find elements with a specific data attribute, parse config, call renderWidget
-// }
-// autoInitialize();
+/**
+ * Get information about available widgets
+ * @returns Array of widget names
+ */
+export const getAvailableWidgets = (): string[] => {
+  return Object.keys(registry);
+};
+
+// Export for UMD/global access
+// These exports will be available as MindbodyWidgets.X in the global scope
+export default {
+  init,
+  render,
+  renderWidget,
+  unmount,
+  destroy,
+  getAvailableWidgets
+};
 
 // Example export (to be replaced later)
 // export const initializeWidgets = (config: any) => {
