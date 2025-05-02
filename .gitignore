@@ -1,6 +1,5 @@
 .DS_Store
 .env
-.cursor/
 dist
 node_modules
 server/.env
@@ -37,4 +36,7 @@ node_modules/
 
 # Task files
 tasks.json
-tasks/ 
+tasks/
+
+# Cursor specific
+.cursor/mcp.json # Ignore MCP secrets file 

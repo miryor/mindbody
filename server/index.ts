@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Response, NextFunction } from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
@@ -10,8 +10,9 @@ import fetch, { HeadersInit } from 'node-fetch';
 import { createHash } from 'crypto';
 import geoip from 'geoip-lite';
 import { formatDateWithTimezone, parseDate } from './utils/dateUtils';
-import { initializeMindbody, mindbodyApi, renewToken } from './services/mindbodyApi';
-import { initializeOAuth, default as oauthRouter } from './routes/oauth';
+import { mindbodyApi, initializeMindbodyApiClient } from './services/mindbodyApi';
+import { AuthService, initializeAuthService, getAuthServiceInstance, AuthServiceConfig, AuthorizationHeaders } from './services/authService';
+import { initializeOAuthRouter, default as oauthRouter } from './routes/oauth';
 import { sessions } from './services/sessionStore';
 
 dotenv.config();
@@ -23,7 +24,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser() as any);
+app.use(cookieParser());
 
 // Log all incoming requests
 app.use((req, res, next) => {
@@ -31,27 +32,78 @@ app.use((req, res, next) => {
   next();
 });
 
-// Create a base router with the /api/v1 prefix
-const apiRouter = express.Router();
-
-// Initialize Mindbody API with configuration
-initializeMindbody({
+// 1. Build combined config for AuthService
+const authConfig: AuthServiceConfig = {
   apiKey: process.env.MINDBODY_API_KEY || '',
   siteId: process.env.MINDBODY_SITE_ID || '',
   apiUrl: process.env.MINDBODY_API_URL || '',
-  username: process.env.MINDBODY_USERNAME || '',
-  password: process.env.MINDBODY_PASSWORD || ''
+  staff: {
+    username: process.env.MINDBODY_USERNAME || '',
+    password: process.env.MINDBODY_PASSWORD || '',
+  },
+  oauth: {
+    clientId: process.env.MINDBODY_CLIENT_ID || '',
+    clientSecret: process.env.MINDBODY_CLIENT_SECRET || '',
+    tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
+  }
+};
+
+// Validate essential config
+if (!authConfig.apiKey || !authConfig.siteId || !authConfig.apiUrl || !authConfig.staff.username || !authConfig.staff.password || !authConfig.oauth.clientId || !authConfig.oauth.clientSecret) {
+    console.error("FATAL: Missing essential Mindbody configuration in environment variables.");
+    process.exit(1); // Exit if critical config is missing
+}
+
+// 2. Initialize AuthService (Singleton)
+initializeAuthService(authConfig);
+const authService = getAuthServiceInstance(); // Get instance for potential direct use if needed
+
+// 3. Initialize Mindbody API Client (passing only necessary shared config)
+// This assumes mindbodyApi.ts is refactored to accept this config
+// and use AuthService via interceptors later.
+initializeMindbodyApiClient({
+    apiKey: authConfig.apiKey,
+    siteId: authConfig.siteId,
+    apiUrl: authConfig.apiUrl,
 });
 
-// Initialize OAuth with configuration
-initializeOAuth({
-  clientId: process.env.MINDBODY_CLIENT_ID || '',
-  clientSecret: process.env.MINDBODY_CLIENT_SECRET || '',
-  tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
-  redirectUri: process.env.OAUTH_REDIRECT_URI || '',
-  siteId: process.env.MINDBODY_SITE_ID || '',
-  apiKey: process.env.MINDBODY_API_KEY || ''
+// 4. Initialize OAuth Router (passing necessary OAuth config)
+// This assumes oauth.ts is refactored to accept this config.
+initializeOAuthRouter({
+  clientId: authConfig.oauth.clientId,
+  clientSecret: authConfig.oauth.clientSecret,
+  tokenUrl: authConfig.oauth.tokenUrl,
+  redirectUri: process.env.OAUTH_REDIRECT_URI || '', // Keep separate for now
+  siteId: authConfig.siteId,
+  apiKey: authConfig.apiKey
 });
+
+// Middleware to inject Mindbody auth headers into res.locals
+// This will be used by route handlers after mindbodyApi.ts is refactored
+const injectMindbodyHeaders: RequestHandler = async (req, res: Response, next: NextFunction) => {
+    try {
+        // Cast req to express.Request if needed by getAuthorizationHeaders
+        const headers = await authService.getAuthorizationHeaders(req as express.Request);
+        // Attach headers to res.locals for downstream handlers
+        res.locals.mindbodyHeaders = headers as AuthorizationHeaders;
+        // console.log('Injected Mindbody Headers:', Object.keys(res.locals.mindbodyHeaders)); // Debugging
+        next();
+    } catch (error) {
+        console.error('Error getting Mindbody authorization headers:', error);
+        // Decide how to handle failure - block request? Proceed without headers?
+        // For now, let's block critical API calls if auth fails
+        res.status(503).json({ error: 'Service Unavailable: Could not authenticate with Mindbody API.' });
+    }
+};
+
+// Create a base router with the /api/v1 prefix
+const apiRouter = express.Router();
+
+// Apply the header injection middleware TO THE API ROUTER
+// IMPORTANT: This means OAuth routes will NOT have these headers injected automatically,
+// which is correct as they handle their own specific token exchange calls.
+// If any future routes under /api/v1 should *not* use this, they need finer-grained middleware application.
+apiRouter.use(injectMindbodyHeaders);
 
 // Store session types in memory
 let sessionTypes = {
@@ -66,26 +118,20 @@ let locations = {
 };
 
 // Separate async function to fetch session types
-async function fetchSessionTypes() {
+async function fetchSessionTypes(headers: AuthorizationHeaders) {
   try {
     console.log('Fetching session types...');
-    const response = await mindbodyApi.get('/site/sessiontypes');
+    const response = await mindbodyApi.get('/site/sessiontypes', { headers });
     sessionTypes.types = response.data.SessionTypes || [];
     sessionTypes.lastFetched = Date.now();
     console.log('Session types fetched successfully:', {
       count: sessionTypes.types.length,
-      types: sessionTypes.types.map((type: any) => ({
-        id: type.Id,
-        name: type.Name,
-        description: type.Description
-      }))
     });
   } catch (error) {
     console.error('Error fetching session types:', error);
     if (axios.isAxiosError(error)) {
       console.error('Mindbody API error:', {
         status: error.response?.status,
-        message: error.response?.data?.Message,
         data: error.response?.data
       });
     }
@@ -93,10 +139,10 @@ async function fetchSessionTypes() {
 }
 
 // Function to fetch locations
-async function fetchLocations(): Promise<void> {
+async function fetchLocations(headers: AuthorizationHeaders): Promise<void> {
   try {
     console.log('Fetching locations...');
-    const response = await mindbodyApi.get('/site/locations');
+    const response = await mindbodyApi.get('/site/locations', { headers });
     locations.data = response.data.Locations || [];
     locations.lastFetched = Date.now();
 
@@ -142,16 +188,22 @@ async function fetchLocations(): Promise<void> {
   }
 }
 
-// Initialize token when server starts
-console.log('Initializing server token...');
+// Removed direct renewToken call. These fetches now rely on injectMindbodyHeaders
+// providing the necessary context for the staff token to be acquired via AuthService
+// and used by the (future) refactored mindbodyApi interceptor.
+console.log('Fetching initial server data (Session Types, Locations)...');
 (async () => {
   try {
-    const token = await renewToken();
-    console.log('Server token initialized successfully');
-    await fetchSessionTypes();
-    await fetchLocations();
+    // We need headers for these initial calls, but injectMindbodyHeaders doesn't run here.
+    // We need to get headers manually for startup tasks.
+    const startupHeaders = await authService.getAuthorizationHeaders(); // Get headers without request context (defaults to staff)
+    console.log('Making startup requests with staff token.');
+    await fetchSessionTypes(startupHeaders);
+    await fetchLocations(startupHeaders);
+    console.log('Initial server data fetched.');
   } catch (error) {
-    console.error('Failed to initialize server token:', error);
+    console.error('Failed to fetch initial server data:', error);
+    // Consider if server should exit if initial data fetch fails
   }
 })();
 
@@ -196,7 +248,7 @@ apiRouter.post('/client/create', async (req, res) => {
       SendAccountEmails: true,
       Action: "Added",
       BirthDate: birthDate
-    });
+    }, { headers: res.locals.mindbodyHeaders });
 
     console.log('Client creation successful:', {
       clientId: response.data.Client?.Id,
@@ -264,7 +316,7 @@ apiRouter.post('/client/password-reset', async (req, res) => {
       UserEmail: email,
       UserFirstName: firstName,
       UserLastName: lastName
-    });
+    }, { headers: res.locals.mindbodyHeaders });
 
     console.log('Password reset email sent successfully');
 
@@ -338,7 +390,8 @@ apiRouter.get('/classes', async (req, res) => {
         Offset: 0,
         ShowPublicOnly: false,
         CrossLocationLookup: true
-      }
+      },
+      headers: res.locals.mindbodyHeaders
     });
 
     // Log response metadata
@@ -435,7 +488,8 @@ apiRouter.get('/appointments/bookableitems', async (req, res) => {
         StaffIds: [], // Optional: filter by staff
         LocationIds: [], // Optional: filter by locations
         Limit: 100
-      }
+      },
+      headers: res.locals.mindbodyHeaders
     });
 
     // Log response metadata
@@ -509,7 +563,8 @@ apiRouter.get('/products', async (req, res) => {
         Limit: 100,
         Offset: 0,
         IncludeInactive: false
-      }
+      },
+      headers: res.locals.mindbodyHeaders
     });
 
     // Log response metadata
@@ -565,7 +620,7 @@ apiRouter.post('/products/purchase', async (req, res) => {
       ProductId: productId,
       Quantity: quantity,
       ClientId: session.clientInfo.Id
-    });
+    }, { headers: res.locals.mindbodyHeaders });
 
     console.log('Purchase processed successfully:', response.data);
     res.json(response.data);
@@ -603,7 +658,7 @@ apiRouter.post('/products/giftcard', async (req, res) => {
     const response = await mindbodyApi.post('/sale/checkout', {
       GiftCardAmount: amount,
       ClientId: session.clientInfo.Id
-    });
+    }, { headers: res.locals.mindbodyHeaders });
 
     console.log('Gift card purchase processed successfully:', response.data);
     res.json(response.data);
@@ -647,7 +702,8 @@ apiRouter.get('/packages', async (req, res) => {
         Offset: parseInt(offset as string),
         SellOnline: sellOnline === 'true',
         LocationId: locationId || null
-      }
+      },
+      headers: res.locals.mindbodyHeaders
     });
 
     // Log response metadata
@@ -716,7 +772,7 @@ apiRouter.post('/packages/purchase', async (req, res) => {
     const response = await mindbodyApi.post('/sale/checkout', {
       PackageId: packageId,
       ClientId: session.clientInfo.Id
-    });
+    }, { headers: res.locals.mindbodyHeaders });
 
     console.log('Package purchase processed successfully:', response.data);
     res.json(response.data);
@@ -753,7 +809,8 @@ apiRouter.get('/admin/services', async (req, res) => {
         Limit: parseInt(limit as string),
         Offset: parseInt(offset as string),
         SearchText: searchText
-      }
+      },
+      headers: res.locals.mindbodyHeaders
     });
 
     // Log response metadata
@@ -819,7 +876,7 @@ apiRouter.put('/admin/services/:id', async (req, res) => {
           Price: parseFloat(price)
         }
       ]
-    });
+    }, { headers: res.locals.mindbodyHeaders });
 
     console.log('Service price updated successfully:', response.data);
     res.json(response.data);
@@ -843,9 +900,11 @@ apiRouter.use('/oauth', oauthRouter);
 app.use('/api/v1', apiRouter);
 
 // Error handling middleware
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, req: express.Request, res: Response, next: NextFunction) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  // Provide a generic error message in production
+  const errorMessage = process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message;
+  res.status(500).json({ error: errorMessage });
 });
 
 const PORT = process.env.PORT || 3001;
