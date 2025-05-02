@@ -39,4 +39,4 @@ tasks.json
 tasks/
 
 # Cursor specific
-.cursor/mcp.json # Ignore MCP secrets file 
+.cursor/mcp.json
