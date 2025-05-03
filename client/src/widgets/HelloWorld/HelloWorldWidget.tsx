@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Typography, Divider } from '@mui/material';
-import { BaseWidget } from '../components';
-import { WidgetConfig } from '../types/widgetConfig';
+import { BaseWidget } from '../../components';
+import { WidgetConfig } from '../../types/widgetConfig';
 
 interface HelloWorldWidgetProps {
   config: WidgetConfig;

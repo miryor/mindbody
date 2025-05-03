@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
-import { SchedulerWidget } from './widgets/SchedulerWidget';
 import { RetailWidget } from './widgets/RetailWidget';
 import PackagesWidget from './widgets/PackagesWidget';
 import { OAuthCallback } from './components/OAuthCallback';
@@ -91,18 +90,13 @@ export const App: React.FC = () => {
         <Routes>
           <Route path="/" element={
             isAuthenticated ? (
-              <Navigate to="/scheduler" replace />
+              <Navigate to="/retail" replace />
             ) : (
               <div>
                 <h1>Mindbody Widgets</h1>
                 <OAuthLogin />
               </div>
             )
-          } />
-          <Route path="/scheduler" element={
-            <ProtectedRoute>
-              <SchedulerWidget />
-            </ProtectedRoute>
           } />
           <Route path="/retail" element={
             <ProtectedRoute>

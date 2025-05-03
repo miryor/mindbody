@@ -11,7 +11,10 @@ import { WidgetProvider } from './context/WidgetContext';
 import './styles/isolation.css';
 
 // Import Widgets
-import * as widgets from './widgets';
+// Update the import path for HelloWorldWidget
+import HelloWorldWidget from './widgets/HelloWorld/HelloWorldWidget';
+import ScheduleWidget from './widgets/ScheduleWidget/ScheduleWidget'; // Correct import
+// Import other widgets as needed
 
 console.log('Mindbody Widgets Library Loaded');
 
@@ -26,13 +29,11 @@ const DEFAULT_CONFIG = {
 let _instances: Record<string, any> = {};
 let _config = { ...DEFAULT_CONFIG };
 
-// Widget Registry - automatically populated from the widgets directory
+// Widget Registry - Ensure no reference to the old SchedulerWidget
 const registry: WidgetRegistry = {
-  HelloWorld: widgets.HelloWorldWidget,
-  Scheduler: widgets.SchedulerWidget,
-  Retail: widgets.RetailWidget,
-  Packages: widgets.PackagesWidget,
-  // Register other widgets here as they are created
+  HelloWorld: HelloWorldWidget,
+  ScheduleWidget: ScheduleWidget, // This is the correct one
+  // Remove any other potential SchedulerWidget entries if they existed
 };
 
 /**
@@ -210,6 +211,80 @@ export const destroy = () => {
 export const getAvailableWidgets = (): string[] => {
   return Object.keys(registry);
 };
+
+/**
+ * Automatically finds and renders widgets based on data attributes.
+ */
+const autoInitializeWidgets = () => {
+    console.log('[MindbodyWidgets] Attempting auto-initialization...');
+
+    // Find script tags that likely loaded this bundle
+    const widgetScriptTags = document.querySelectorAll('script[src*="mindbody-widgets"]');
+    console.log(`[MindbodyWidgets] Found ${widgetScriptTags.length} potential widget script tag(s).`);
+
+    let isAutoInitEnabled = false;
+    widgetScriptTags.forEach((scriptTag, index) => {
+        console.log(`[MindbodyWidgets] Checking script tag ${index + 1}:`, scriptTag);
+        if (scriptTag.hasAttribute('data-mindbody-widgets-auto-init')) {
+            console.log('[MindbodyWidgets] Found data-mindbody-widgets-auto-init attribute.');
+            isAutoInitEnabled = true;
+        }
+    });
+
+    if (!isAutoInitEnabled) {
+        console.log('[MindbodyWidgets] Auto-initialization disabled (attribute not found on any relevant script tag).');
+        return;
+    }
+
+    console.log('[MindbodyWidgets] Auto-initialization enabled. Scanning for widgets...');
+
+    // Find and render elements (rest of the function remains the same)
+    const widgetElements = document.querySelectorAll<HTMLElement>('[data-mindbody-widget]');
+    console.log(`[MindbodyWidgets] Found ${widgetElements.length} elements with data-mindbody-widget attribute.`);
+
+    widgetElements.forEach((element, index) => {
+        console.log(`[MindbodyWidgets] Processing element ${index + 1}:`, element);
+        const widgetName = element.dataset.mindbodyWidget;
+        if (!widgetName) {
+            console.warn('[MindbodyWidgets] Element missing data-mindbody-widget value:', element);
+            return;
+        }
+        console.log(`[MindbodyWidgets] Element wants widget: ${widgetName}`);
+
+        if (!element.id) {
+            element.id = `mindbody-widget-auto-${Math.random().toString(36).substring(2, 9)}`;
+            console.warn(`[MindbodyWidgets] Auto-initialized widget element lacked an ID, assigned: ${element.id}`, element);
+        }
+
+        const config: Partial<WidgetConfig> = {
+            targetElementId: element.id,
+        };
+        for (const key in element.dataset) {
+            if (key.startsWith('widget') && key !== 'mindbodyWidget') {
+                const configKey = key.substring(6).charAt(0).toLowerCase() + key.substring(7);
+                config[configKey] = element.dataset[key];
+            }
+        }
+        console.log(`[MindbodyWidgets] Config for ${widgetName} (#${element.id}):`, config);
+
+        // Render the widget
+        render(widgetName, config)
+            .then(instance => {
+                 console.log(`[MindbodyWidgets] Successfully auto-rendered ${widgetName} into #${element.id}`, { instance });
+            })
+            .catch(error => {
+                console.error(`[MindbodyWidgets] Failed to auto-render ${widgetName} into #${element.id}:`, error);
+            });
+    });
+};
+
+// --- Run Auto-Initialization ---
+// Wait for the DOM to be ready before scanning
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', autoInitializeWidgets);
+} else {
+    autoInitializeWidgets();
+}
 
 // Export for UMD/global access
 // These exports will be available as MindbodyWidgets.X in the global scope

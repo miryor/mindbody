@@ -1,0 +1,68 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+- **Overall Goal:** Create self-contained, embeddable React widgets that interact with the Mindbody server backend and maintain style isolation from the host page.
+
+- **Core Technologies:**
+  - React (v18)
+  - TypeScript
+  - Material UI (MUI) for UI components and theming.
+  - Shadow DOM for CSS isolation.
+  - Vite for development and building the library output.
+
+- **Key Components & Structure:**
+  - **Build Entry Point (`client/src/lib.tsx`):**
+    - Serves as the main entry point for the Vite library build.
+    - Configured in [`vite.config.ts`](mdc:client/vite.config.ts) to output UMD (`mindbody-widgets.umd.js`) and ES (`mindbody-widgets.es.js`) formats to `client/dist/lib/`.
+    - Exports a default object containing public API functions (`init`, `render`, `unmount`, `destroy`, `getAvailableWidgets`).
+    - Contains a widget `registry` mapping string names (e.g., "ScheduleWidget") to imported widget components.
+    - Includes logic (`autoInitializeWidgets`) to automatically render widgets based on `data-mindbody-widget` attributes if the loading script tag has `data-mindbody-widgets-auto-init`.
+  - **Root Wrapper (`client/src/WidgetRoot.tsx`):**
+    - Provides the top-level context: MUI `ThemeProvider`, potentially others.
+    - Renders the `ShadowDomContainer`.
+    - Renders the specific widget component passed as children, applying necessary context providers (like `WidgetProvider`).
+  - **CSS Isolation (`client/src/components/ShadowDomContainer.tsx` - *Verify implementation*):
+    - Creates a Shadow Root (`attachShadow({ mode: 'open' })`).
+    - Should copy necessary styles (MUI base/theme) into the Shadow DOM.
+    - Renders `children` inside the Shadow DOM.
+  - **Specific Widgets (`client/src/widgets/WidgetName/WidgetName.tsx`):**
+    - Standard location for widget components (e.g., [`client/src/widgets/ScheduleWidget/ScheduleWidget.tsx`](mdc:client/src/widgets/ScheduleWidget/ScheduleWidget.tsx)).
+    - Manages widget-specific state and logic.
+    - Calls API helper functions.
+    - Renders sub-components (e.g., `ListView`, `CalendarView`).
+    - May have a local `types.ts`.
+    - *Note:* Redundant/old widgets (like the top-level `SchedulerWidget.tsx`) should be removed.
+
+- **Data Fetching (`client/src/api/*.ts`):**
+  - API call logic encapsulated (e.g., [`client/src/api/schedule.ts`](mdc:client/src/api/schedule.ts)).
+  - Use `axios` to call the **server backend** (`http://localhost:3001/api/v1/...`).
+  - Use `withCredentials: true` for requests needing session context.
+  - Define exported TypeScript interfaces for API data structures (e.g., `ClassData`, `AppointmentData`).
+
+- **Styling:**
+  - **MUI:** Used for core UI components (`Button`, `List`, etc.). Theming is controlled by the `ThemeProvider` in `WidgetRoot.tsx`.
+  - **Shadow DOM:** Provides the primary mechanism for CSS isolation.
+  - **Custom Styles:** Styles specific to widget components should be defined within those components (e.g., using MUI's `sx` prop, `styled-components`, CSS Modules) and will be encapsulated by the Shadow DOM.
+
+- **Types (`client/src/types/` or per-widget):**
+  - Use TypeScript for type safety.
+  - Define shared interfaces/types.
+  - Specific widget types can live within the widget's folder (e.g., `client/src/widgets/ScheduleWidget/types.ts`) or potentially a global `client/src/types` directory.
+
+- **Build Process (`vite.config.ts`, `package.json`, `scripts/copy-umd.js`):**
+  - `vite build` uses library mode configured in [`vite.config.ts`](mdc:client/vite.config.ts).
+  - [`scripts/copy-umd.js`](mdc:client/scripts/copy-umd.js) copies the UMD build output (`mindbody-widgets.umd.js`) to `client/public/`.
+  - `npm run build` orchestrates `tsc`, `vite build`, and the copy script.
+
+- **Embedding (`client/public/*.html`, `MindbodyWidgets.render`):**
+  - Host HTML pages reside in `client/public/` (e.g., [`test-schedule-widget.html`](mdc:client/public/test-schedule-widget.html), [`test-isolation.html`](mdc:client/public/test-isolation.html)).
+  - Load React & ReactDOM first (e.g., from CDN).
+  - Load the widget library script (e.g., `<script src="/mindbody-widgets.umd.js">`).
+  - Initialize widgets either manually via script (`MindbodyWidgets.render('WidgetName', { targetElementId: '...', ... })`) or automatically using `data-mindbody-widget` attributes on container elements (requires `data-mindbody-widgets-auto-init` on the script tag).
+
+- **Maintenance:**
+  - **This rule MUST be kept up-to-date** when changes are made to the client-side build process, core components (`lib.tsx`, `WidgetRoot.tsx`, `ShadowDomContainer.tsx`), embedding strategy, or overall widget structure. Refer to [`self_improve.mdc`](mdc:.cursor/rules/self_improve.mdc).
+
+This rule provides a reference for the established client-side patterns.

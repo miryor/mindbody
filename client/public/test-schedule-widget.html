@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Schedule Widget</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #schedule-widget-container {
+            border: 1px dashed #ccc;
+            padding: 15px;
+            margin-top: 20px;
+            max-width: 800px; /* Example width */
+        }
+    </style>
+
+    <!-- Load React & ReactDOM BEFORE the widget script -->
+    <!-- Using unpkg CDN for React 18 -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+</head>
+<body>
+    <h1>Mindbody Schedule Widget Test Page</h1>
+    <p>The schedule widget should appear below inside the dashed border.</p>
+
+    <!-- Container for the widget -->
+    <div id="mindbody-schedule-widget"></div>
+
+    <!-- Load the widget embedding script (UMD version) AFTER React/ReactDOM -->
+    <script src="/mindbody-widgets.umd.js"></script>
+
+    <!--
+        Initialize the widget.
+        Uses the UMD global variable `MindbodyWidgets` and the `render` function.
+    -->
+    <script>
+        // Get today's date in YYYY-MM-DD format
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayString = `${yyyy}-${mm}-${dd}`;
+
+        if (typeof MindbodyWidgets !== 'undefined' && typeof MindbodyWidgets.render === 'function') {
+            MindbodyWidgets.render('ScheduleWidget', {
+                targetElementId: 'mindbody-schedule-widget',
+                // Pass today's date for start and end date
+                initialStartDate: todayString,
+                initialEndDate: todayString,
+                // Add other config props if needed
+                // defaultView: 'list',
+                // siteId: '-99'
+            });
+        } else {
+            console.error('Could not find MindbodyWidgets.render function. Check script load order and build output.');
+            document.getElementById('mindbody-schedule-widget').innerHTML =
+                '<p style="color: red;">Error: Could not load the widget.</p>';
+        }
+    </script>
+
+</body>
+</html> 

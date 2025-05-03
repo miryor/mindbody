@@ -62,6 +62,11 @@
       margin-bottom: 30px;
     }
   </style>
+
+  <!-- Load React & ReactDOM BEFORE the widget script -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
 </head>
 <body>
   <h1>Mindbody Widgets - Embedding Test</h1>
@@ -141,8 +146,8 @@ MindbodyWidgets.render('HelloWorld', {
     </div>
   </div>
   
-  <!-- Load the embedding script -->
-  <script src="embed.js" data-mindbody-widgets-auto-init data-mindbody-widgets-config='{"debug":true, "version":"0.1.0"}'></script>
+  <!-- Load the embedding script AFTER React/ReactDOM -->
+  <script src="/mindbody-widgets.umd.js" data-mindbody-widgets-auto-init></script>
   
   <!-- Add a small delay before executing the example code -->
   <script>

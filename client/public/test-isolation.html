@@ -77,6 +77,10 @@
       padding: 30px !important;
     }
   </style>
+
+  <!-- Load React & ReactDOM BEFORE the widget script -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 </head>
 <body>
   <h1>Host Page with Invasive Styling</h1>
@@ -89,8 +93,8 @@
     <p>This button should have a dashed red border and orange background.</p>
   </div>
   
-  <!-- Include the Mindbody Widgets embed script -->
-  <script src="./embed.js"></script>
+  <!-- Include the Mindbody Widgets embed script AFTER React/ReactDOM -->
+  <script src="/mindbody-widgets.umd.js"></script>
   
   <!-- This is where our isolated widget will render -->
   <div id="mindbody-widget-test">

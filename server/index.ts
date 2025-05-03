@@ -23,7 +23,7 @@ dotenv.config();
 
 const app = express();
 app.use(cors({
-  origin: ['http://localhost:3000'],
+  origin: ['http://localhost:3000', 'http://localhost:8080'],
   credentials: true
 }));
 app.use(express.json());
@@ -42,13 +42,13 @@ const authConfig: AuthServiceConfig = {
   siteId: process.env.MINDBODY_SITE_ID || '',
   apiUrl: process.env.MINDBODY_API_URL || '',
   staff: {
-    username: process.env.MINDBODY_USERNAME || '',
+  username: process.env.MINDBODY_USERNAME || '',
     password: process.env.MINDBODY_PASSWORD || '',
   },
   oauth: {
-    clientId: process.env.MINDBODY_CLIENT_ID || '',
-    clientSecret: process.env.MINDBODY_CLIENT_SECRET || '',
-    tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
+  clientId: process.env.MINDBODY_CLIENT_ID || '',
+  clientSecret: process.env.MINDBODY_CLIENT_SECRET || '',
+  tokenUrl: 'https://signin.mindbodyonline.com/connect/token',
   }
 };
 
@@ -92,7 +92,7 @@ const injectMindbodyHeaders: RequestHandler = async (req, res: Response, next: N
         res.locals.mindbodyHeaders = headers as AuthorizationHeaders;
         // console.log('Injected Mindbody Headers:', Object.keys(res.locals.mindbodyHeaders)); // Debugging
         next();
-    } catch (error) {
+  } catch (error) {
         console.error('Error getting Mindbody authorization headers:', error);
         // Decide how to handle failure - block request? Proceed without headers?
         // For now, let's block critical API calls if auth fails
@@ -144,10 +144,10 @@ console.log('Fetching initial server data (Session Types, Locations)...');
 
     // Process locations for geoip *after* fetching
     const locationWithCoords = locationsData.find((loc: Location) => // Add type annotation here
-        loc.Latitude !== undefined &&
-        loc.Longitude !== undefined &&
-        loc.Latitude !== null &&
-        loc.Longitude !== null
+      loc.Latitude !== undefined && 
+      loc.Longitude !== undefined && 
+      loc.Latitude !== null && 
+      loc.Longitude !== null
     );
     if (locationWithCoords) {
       const geo = geoip.lookup(locationWithCoords.Latitude + ',' + locationWithCoords.Longitude);
@@ -184,9 +184,9 @@ apiRouter.post('/client/create', async (req, res) => {
     const addClientResponse = await mindbodyService.addClient(
         res.locals.mindbodyHeaders,
         {
-            FirstName: firstName,
-            LastName: lastName,
-            Email: email,
+      FirstName: firstName,
+      LastName: lastName,
+      Email: email,
             // Username defaults to email in repository
             BirthDate: birthDate // Assuming YYYY-MM-DD format from client
             // Repository sets other defaults like Test, SendAccountEmails, Action
@@ -259,42 +259,39 @@ apiRouter.post('/client/password-reset', async (req, res) => {
 apiRouter.get('/classes', async (req, res) => {
   console.log('Received request for /classes endpoint');
   try {
-    // Session check remains
+    // Session check is now optional for timezone
     const sessionId = req.cookies.sessionId;
-    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
-    const session = sessions.get(sessionId);
-    if (!session) { return res.status(401).json({ error: 'Invalid session' }); }
+    const session = sessionId ? sessions.get(sessionId) : undefined;
+    // Use session timezone if available, otherwise default (e.g., UTC or a configured default)
+    // TODO: Consider making default timezone configurable
+    const tz = session?.timezone || 'UTC';
 
-    const tz = session.timezone;
     const { startDate, endDate, limit, offset } = req.query;
 
     if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'startDate and endDate query parameters are required' });
+        return res.status(400).json({ error: 'startDate and endDate query parameters are required' });
     }
+
+    // Headers are injected by middleware (will use staff token if no session)
+    const headers = res.locals.mindbodyHeaders;
 
     // Use the MindbodyService facade
     const classesData = await mindbodyService.getClasses(
-        res.locals.mindbodyHeaders,
+        headers,
         startDate as string,
         endDate as string,
-        tz,
+        tz, // Use determined timezone
         { limit: limit ? parseInt(limit as string) : undefined, offset: offset ? parseInt(offset as string) : undefined }
     );
 
-    // No need for detailed logging here, repository handles it
     console.log('Successfully retrieved class data via service.');
-
-    // Send the data obtained from the repository
     res.json(classesData);
 
   } catch (error) {
-    // Standardized error logging and response
     console.error('Error in /classes route handler:', error);
-    // Check if it's an Axios error passed up from the repository
+    // Standardized error handling
     if (axios.isAxiosError(error)) {
-        res.status(error.response?.status || 500).json({
-            error: error.response?.data?.Message || 'Failed to fetch classes from Mindbody'
-        });
+        res.status(error.response?.status || 500).json({ error: error.response?.data?.Message || 'Failed to fetch classes from Mindbody' });
     } else {
         res.status(500).json({ error: 'Internal server error processing classes request' });
     }
@@ -304,34 +301,32 @@ apiRouter.get('/classes', async (req, res) => {
 apiRouter.get('/appointments/bookableitems', async (req, res) => {
   console.log('Received request for /appointments/bookableitems endpoint');
   try {
-    // Session check remains
+    // Session check is now optional for timezone
     const sessionId = req.cookies.sessionId;
-    if (!sessionId) { return res.status(401).json({ error: 'No active session' }); }
-    const session = sessions.get(sessionId);
-    if (!session) { return res.status(401).json({ error: 'Invalid session' }); }
+    const session = sessionId ? sessions.get(sessionId) : undefined;
+    const tz = session?.timezone || 'UTC'; // Default timezone if no session
 
-    const tz = session.timezone;
     const { startDate, endDate, sessionTypeIds, staffIds, locationIds, limit, offset } = req.query;
 
     if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'startDate and endDate query parameters are required' });
+        return res.status(400).json({ error: 'startDate and endDate query parameters are required' });
     }
 
-    // Helper function to parse comma-separated IDs from query string
-    // Explicitly type the input parameter
     const parseIds = (ids?: string | string[] | qs.ParsedQs | qs.ParsedQs[]): number[] | undefined => {
         if (!ids) return undefined;
-        // Handle array case from qs parsing which might contain mixed types
         const idString = Array.isArray(ids) ? ids.map(String).join(',') : String(ids);
         return idString.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
     };
 
+    // Headers are injected by middleware (will use staff token if no session)
+    const headers = res.locals.mindbodyHeaders;
+
     // Use the MindbodyService facade
     const bookableItemsData = await mindbodyService.getBookableItems(
-        res.locals.mindbodyHeaders,
+        headers,
         startDate as string,
         endDate as string,
-        tz,
+        tz, // Use determined timezone
         {
             sessionTypeIds: parseIds(sessionTypeIds as string | string[] | qs.ParsedQs | qs.ParsedQs[] | undefined),
             staffIds: parseIds(staffIds as string | string[] | qs.ParsedQs | qs.ParsedQs[] | undefined),
@@ -347,11 +342,9 @@ apiRouter.get('/appointments/bookableitems', async (req, res) => {
   } catch (error) {
     console.error('Error in /appointments/bookableitems route handler:', error);
     if (axios.isAxiosError(error)) {
-      res.status(error.response?.status || 500).json({
-        error: error.response?.data?.Message || 'Failed to fetch bookable items from Mindbody'
-      });
+        res.status(error.response?.status || 500).json({ error: error.response?.data?.Message || 'Failed to fetch bookable items from Mindbody' });
     } else {
-      res.status(500).json({ error: 'Internal server error processing bookable items request' });
+        res.status(500).json({ error: 'Internal server error processing bookable items request' });
     }
   }
 });
