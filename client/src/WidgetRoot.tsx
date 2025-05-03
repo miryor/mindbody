@@ -5,6 +5,9 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { createGenerateClassName, StylesProvider } from '@mui/styles';
 import { theme, WIDGET_SCOPE_CLASS, CLASS_NAME_PREFIX, GlobalStyles } from './styles';
 
+// Import react-big-calendar CSS as raw text
+import rbcCss from 'react-big-calendar/lib/css/react-big-calendar.css?raw';
+
 interface WidgetRootProps {
   children: React.ReactNode;
 }
@@ -17,6 +20,8 @@ const ShadowDomContainer: React.FC<WidgetRootProps> = ({ children }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const shadowRootRef = useRef<ShadowRoot | null>(null);
   const shadowRootContainerRef = useRef<HTMLDivElement | null>(null);
+  // Store root for unmounting
+  const rootRef = useRef<any>(null); // Use any for now, or import Root from react-dom/client
 
   useEffect(() => {
     if (containerRef.current && !shadowRootRef.current) {
@@ -73,10 +78,16 @@ const ShadowDomContainer: React.FC<WidgetRootProps> = ({ children }) => {
       `;
       shadowRootRef.current.appendChild(styleElement);
       
+      // Inject react-big-calendar styles
+      const rbcStyleElement = document.createElement('style');
+      rbcStyleElement.textContent = rbcCss;
+      shadowRootRef.current.appendChild(rbcStyleElement);
+      
       // Render children to the shadow root using React
       if (shadowRootContainerRef.current) {
-        const root = createRoot(shadowRootContainerRef.current);
-        root.render(
+        // Store the created root
+        rootRef.current = createRoot(shadowRootContainerRef.current);
+        rootRef.current.render(
           <StyledEngineProvider injectFirst>
             <StylesProvider generateClassName={generateClassName}>
               <ThemeProvider theme={theme}>
@@ -92,14 +103,15 @@ const ShadowDomContainer: React.FC<WidgetRootProps> = ({ children }) => {
     
     // Cleanup function
     return () => {
-      if (shadowRootContainerRef.current && shadowRootRef.current) {
-        try {
-          const root = createRoot(shadowRootContainerRef.current);
-          root.unmount();
-        } catch (e) {
-          console.error('Error unmounting React from shadow root:', e);
-        }
+      // Use the stored rootRef to unmount
+      if (rootRef.current) {
+        rootRef.current.unmount();
+        rootRef.current = null; // Clear ref
+        console.log('React root unmounted from shadow DOM');
       }
+       // Clear other refs on cleanup
+      shadowRootContainerRef.current = null;
+      shadowRootRef.current = null; 
     };
   }, [children]);
 
