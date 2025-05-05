@@ -5,9 +5,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Test Schedule Widget</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        #schedule-widget-container {
-            border: 1px dashed #ccc;
+        /* Absurd Global Styles to Test Isolation */
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif !important; /* Terrible font */
+            padding: 20px;
+            background-color: limegreen !important; /* Garish background */
+            color: yellow !important; /* Hard-to-read text */
+            border: 10px dotted hotpink !important; /* Hideous border */
+            text-transform: uppercase !important; /* Make everything shouty */
+        }
+        h1, h2, h3, h4, h5, h6 {
+            font-size: 4em !important; /* Huge headings */
+            color: fuchsia !important; 
+            text-shadow: 3px 3px 0px blue !important; /* Awful shadow */
+            letter-spacing: 0.2em !important;
+            font-family: 'Papyrus', fantasy !important; /* Another bad font */
+        }
+        p {
+            font-size: 20pt !important; /* Large paragraph text */
+            line-height: 1.0 !important; /* Cramped line height */
+            color: aqua !important;
+            background-color: navy !important;
+            border: 5px solid red !important;
+            padding: 1em !important;
+        }
+        button, input, select, textarea {
+            border: 5px dashed yellow !important;
+            background-color: orange !important;
+            color: black !important;
+            font-size: 18pt !important;
+            padding: 15px !important;
+            border-radius: 0 !important; /* No rounded corners */
+        }
+        div {
+            /* Try to break layout */
+            margin: 50px !important;
+            padding: 30px !important;
+            border: 8px groove purple !important;
+        }
+        /* Keep basic container style for reference, but it will be overridden */
+        #mindbody-schedule-widget { 
+            /* This might get overridden by the global div style above */
+            /* but the content INSIDE the shadow DOM should be safe */
+            border: 1px dashed #ccc; 
             padding: 15px;
             margin-top: 20px;
             max-width: 800px; /* Example width */
