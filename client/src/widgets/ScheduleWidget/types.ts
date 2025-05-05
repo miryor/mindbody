@@ -5,14 +5,16 @@
 // import { ClassData, AppointmentData } from '../../api/schedule';
 
 // Define the unified type for display
-export type ScheduleItem = {
-    id: string; // Use unique string IDs: class-[id] or appt-[id]
+export interface ScheduleItem {
+    id: string; // Unique identifier (e.g., 'class-123', 'appt-456')
     type: 'class' | 'appointment';
     name: string;
-    startDateTime: string;
-    endDateTime: string;
+    startDateTime: string; // ISO 8601 format string
+    endDateTime: string; // ISO 8601 format string
     instructorName?: string;
     instructorImageUrl?: string | null;
     locationName?: string;
-    // Add any other fields needed for display across both types
-}; 
+    locationId?: number; // Added location ID
+    studioTimezone?: string; // Added timezone for the studio location
+    // Add other relevant fields as needed (e.g., capacity, description)
+} 

@@ -1,44 +1,50 @@
 import React from 'react';
 import { ScheduleItem } from './types';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
+import Typography from '@mui/material/Typography';
 
 interface ListViewProps {
     data: ScheduleItem[];
+    userTimezone: string | null;
 }
 
-const ListView: React.FC<ListViewProps> = ({ data }) => {
+const ListView: React.FC<ListViewProps> = ({ data, userTimezone }) => {
+    console.log('User timezone in ListView:', userTimezone);
+
     if (!data || data.length === 0) {
-        return <p>No schedule items found for this period.</p>;
+        return (
+            <List className="list-view">
+                <ListItem>
+                    <ListItemText primary="No schedule items found for this period." />
+                </ListItem>
+            </List>
+        );
     }
 
     return (
-        <div className="list-view">
-            <h3>List View</h3>
-            <ul>
-                {data.map(item => (
-                    <li key={item.id} className={`list-item item-type-${item.type}`}>
-                        <div className="item-header">
-                            <span className="item-name">{item.name}</span>
-                            <span className="item-type">({item.type})</span>
-                        </div>
-                        <div className="item-details">
-                            <span className="item-time">
-                                {new Date(item.startDateTime).toLocaleString()} - {new Date(item.endDateTime).toLocaleTimeString()}
-                            </span>
-                            <span className="item-instructor">
-                                Instructor: {item.instructorName || 'N/A'}
-                                {/* Optional Image */}
-                                {/* {item.instructorImageUrl && <img src={item.instructorImageUrl} alt={item.instructorName || ''} style={{ width: '20px', height: '20px', borderRadius: '50%', marginLeft: '5px' }} />} */}
-                            </span>
-                            <span className="item-location">
-                                Location: {item.locationName || 'N/A'}
-                            </span>
-                            {/* TODO: Add more details or actions (e.g., description, booking button if applicable later) */}
-                        </div>
-                    </li>
-                ))}
-            </ul>
-            {/* TODO: Implement Pagination or Infinite Scrolling */}
-        </div>
+        <List className="list-view">
+            {data.map(item => (
+                <ListItem key={item.id} divider alignItems="flex-start">
+                    <ListItemText
+                        primary={`${item.name} (${item.type})`}
+                        secondary={
+                            <React.Fragment>
+                                <Typography component="span" variant="body2" color="text.primary">
+                                    {`Starts: ${new Date(item.startDateTime).toLocaleString()}`}
+                                    {` - Ends: ${new Date(item.endDateTime).toLocaleString()}`}
+                                    {item.studioTimezone && ` (${item.studioTimezone})`}
+                                </Typography>
+                                <br />
+                                {item.instructorName && `Instructor: ${item.instructorName}`}
+                                {item.locationName && ` - Location: ${item.locationName}`}
+                            </React.Fragment>
+                        }
+                    />
+                </ListItem>
+            ))}
+        </List>
     );
 };
 

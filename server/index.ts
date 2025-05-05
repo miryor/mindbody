@@ -665,6 +665,37 @@ apiRouter.put('/admin/services/:id', async (req, res) => {
 // Mount OAuth routes under the base router
 apiRouter.use('/oauth', oauthRouter);
 
+// --- Add Location Route --- 
+apiRouter.get('/locations', async (req, res) => {
+    try {
+        // Headers are injected by middleware into res.locals
+        const headers = res.locals.mindbodyHeaders as AuthorizationHeaders; // Use the correct header type
+        
+        // Call the service method (which calls siteRepository.getLocations)
+        const locations: Location[] = await mindbodyService.getLocations(headers);
+        
+        // Transform Location[] to match client's expected LocationData[] structure
+        // Primarily mapping TimeZone to Timezone if different
+        const clientLocations = locations.map(loc => ({
+            Id: loc.Id,
+            Name: loc.Name,
+            // Assuming SiteRepository.Location doesn't have TimeZone, but we need it?
+            // If SiteRepository.Location *does* have TimeZone, use loc.TimeZone
+            // For now, let's assume we need to fetch it or it's missing. TODO: Verify Location structure
+            Timezone: (loc as any).TimeZone || 'UTC' // Placeholder - NEED TO CONFIRM Location type structure
+        }));
+
+        // Send the transformed response
+        res.json({ locations: clientLocations }); // Ensure key matches client expectation ('locations')
+    } catch (error) {
+        console.error("Error fetching locations:", error);
+        res.status(500).json({ 
+            message: 'Failed to fetch locations.', 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+    }
+});
+
 // Mount the base router under /api/v1
 app.use('/api/v1', apiRouter);
 

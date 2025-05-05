@@ -22,8 +22,7 @@ export class MindbodyService {
         return await siteRepository.getSessionTypes(headers);
     }
 
-    async getLocations(headers: AuthorizationHeaders) {
-        // Simple pass-through for now
+    async getLocations(headers: AuthorizationHeaders): Promise<Location[]> {
         return await siteRepository.getLocations(headers);
     }
 
