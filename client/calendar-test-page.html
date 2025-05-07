@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calendar Test Page (App Build)</title>
+    <!-- Removed Babel script, not needed for this build -->
+    <style>
+        /* Ensure html and body take full height */
+        html, body {
+            height: 100%;
+            margin: 0; /* Remove default body margin */
+            padding: 0; /* Remove default body padding */
+        } 
+        body { 
+            font-family: sans-serif; 
+            padding: 20px; /* Re-add body padding if desired, but height is key */
+            box-sizing: border-box; /* Include padding in height calculation */
+        }
+        /* Apply test styles and height: 100% to the React root container */
+        #root {
+            height: 100%; /* Change height to 100% */
+            border: 5px solid green; /* Changed border for visual confirmation */ 
+            padding: 10px; 
+            background-color: #f0f0f0; /* Changed background */
+            box-sizing: border-box; /* Include padding/border in height */
+        }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div> 
+
+    <!-- This script mounts the React app into #root -->
+    <script type="module" src="/src/calendar-test-main.tsx"></script>
+  </body>
+</html> 

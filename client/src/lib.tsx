@@ -11,9 +11,12 @@ import { WidgetProvider } from './context/WidgetContext';
 import './styles/isolation.css';
 
 // Import Widgets
-// Update the import path for HelloWorldWidget
-import HelloWorldWidget from './widgets/HelloWorld/HelloWorldWidget';
-import ScheduleWidget from './widgets/ScheduleWidget/ScheduleWidget'; // Correct import
+// Revert HelloWorldWidget import to direct file path
+import HelloWorldWidget from './widgets/HelloWorld/HelloWorldWidget'; 
+// Revert ScheduleWidget import to direct file path
+import ScheduleWidget from './widgets/ScheduleWidget/ScheduleWidget'; 
+// Keep SimpleCalendarTestWidget import using its directory index.ts
+import SimpleCalendarTestWidget from './widgets/SimpleCalendarTest';
 // Import other widgets as needed
 
 console.log('Mindbody Widgets Library Loaded');
@@ -32,7 +35,8 @@ let _config = { ...DEFAULT_CONFIG };
 // Widget Registry - Ensure no reference to the old SchedulerWidget
 const registry: WidgetRegistry = {
   HelloWorld: HelloWorldWidget,
-  ScheduleWidget: ScheduleWidget, // This is the correct one
+  ScheduleWidget: ScheduleWidget,
+  SimpleCalendarTestWidget: SimpleCalendarTestWidget, 
   // Remove any other potential SchedulerWidget entries if they existed
 };
 
@@ -59,32 +63,56 @@ export const init = (config = {}) => {
  * @returns A function to unmount the widget
  */
 export const renderWidget = (widgetName: string, config: WidgetConfig) => {
+  console.log(`[renderWidget] Attempting to render: ${widgetName}`);
   const WidgetComponent = registry[widgetName];
   if (!WidgetComponent) {
-    console.error(`Widget "${widgetName}" not found in registry.`);
+    console.error(`[renderWidget] Widget "${widgetName}" not found in registry.`);
     return;
   }
+  console.log(`[renderWidget] Found component for ${widgetName}.`);
 
   const targetElement = document.getElementById(config.targetElementId);
   if (!targetElement) {
-    console.error(`Target element with ID "${config.targetElementId}" not found.`);
+    console.error(`[renderWidget] Target element "#${config.targetElementId}" not found.`);
     return;
   }
+  console.log(`[renderWidget] Found target element "#${config.targetElementId}".`);
 
   // Use React 18's createRoot API
-  const root = createRoot(targetElement);
-  root.render(
-    <React.StrictMode>
-      <WidgetRoot> {/* Apply theme and isolation */}
-        <WidgetProvider widgetName={widgetName} config={config}>
-          <WidgetComponent config={config} />
-        </WidgetProvider>
-      </WidgetRoot>
-    </React.StrictMode>
-  );
+  let root: ReturnType<typeof createRoot> | null = null;
+  try {
+    console.log(`[renderWidget] Calling createRoot for "#${config.targetElementId}"...`);
+    root = createRoot(targetElement);
+    console.log(`[renderWidget] createRoot successful.`);
+  } catch (e) {
+     console.error(`[renderWidget] Error during createRoot:`, e);
+     targetElement.innerHTML = `<p style="color: red;">Error creating React root.</p>`;
+     return; 
+  }
+  
+  try {
+    console.log(`[renderWidget] Calling root.render for ${widgetName}...`);
+    root.render(
+      <React.StrictMode>
+        <WidgetRoot> {/* Apply theme and isolation */}
+          <WidgetProvider widgetName={widgetName} config={config}>
+            {/* Add log inside to see if this part executes */}            
+            {React.createElement(WidgetComponent, { config: config, key: widgetName }, 
+              React.createElement('script', { dangerouslySetInnerHTML: { __html: `console.log('[renderWidget] WidgetComponent (${widgetName}) is being rendered by React.createElement');` } })
+            )} 
+          </WidgetProvider>
+        </WidgetRoot>
+      </React.StrictMode>
+    );
+    console.log(`[renderWidget] root.render command issued for ${widgetName}.`);
+  } catch (e) {
+     console.error(`[renderWidget] Error during root.render:`, e);
+     targetElement.innerHTML = `<p style="color: red;">Error rendering widget component.</p>`;
+     return;
+  }
 
   if (_config.debug) {
-    console.log(`Widget "${widgetName}" rendered into element "#${config.targetElementId}"`);
+    console.log(`Widget "${widgetName}" render initiated into element "#${config.targetElementId}"`);
   }
 
   // Return an unmount function

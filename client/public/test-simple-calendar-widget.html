@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Calendar Widget Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #simple-test-container {
+            border: 1px dashed #ccc;
+            padding: 15px;
+            margin-top: 20px;
+            /* Ensure container has some size, though widget sets its own height */
+             height: 650px; 
+        }
+    </style>
+
+    <!-- Load React & ReactDOM BEFORE the widget script (Optional - bundle might include them) -->
+    <!-- Using unpkg CDN for React 18 -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+</head>
+<body>
+    <h1>Simple Calendar Test Widget Page</h1>
+    <p>This page tests the SimpleCalendarTestWidget rendered via our library bundle.</p>
+
+    <!-- Container for the widget -->
+    <div id="simple-test-container"></div>
+
+    <!-- Load the widget embedding script (UMD version) AFTER React/ReactDOM -->
+    <script src="/mindbody-widgets.umd.js"></script>
+
+    <script>
+        if (typeof MindbodyWidgets !== 'undefined' && typeof MindbodyWidgets.render === 'function') {
+            console.log('Rendering SimpleCalendarTestWidget...');
+            MindbodyWidgets.render('SimpleCalendarTestWidget', {
+                targetElementId: 'simple-test-container',
+                // No specific config needed for this simple widget
+            });
+        } else {
+            console.error('Could not find MindbodyWidgets.render function.');
+            document.getElementById('simple-test-container').innerHTML =
+                '<p style="color: red;">Error: Could not load the widget library.</p>';
+        }
+    </script>
+
+</body>
+</html> 

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RBC Standalone Test (Final Attempt)</title>
+
+    <!-- 1. Load React and ReactDOM (Development Builds) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- 2. Load date-fns (UMD bundle from jsDelivr - using v3 based on user edits) -->
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@3.6.0/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@3.6.0/locale/cdn.min.js"></script>
+
+    <!-- 3. Load React Big Calendar JS (Development Build) -->
+    <script src="https://unpkg.com/react-big-calendar@latest/dist/react-big-calendar.js"></script>
+
+    <!-- 4. Load React Big Calendar CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/react-big-calendar@latest/lib/css/react-big-calendar.css">
+    
+    <!-- 5. Load Babel for in-browser JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { font-family: sans-serif; padding: 20px; margin: 0; }
+        #calendar-container {
+            height: 600px; /* RBC needs a defined height */
+            border: 1px solid #ddd;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>React Big Calendar Standalone Test (Final Attempt)</h1>
+    <div id="calendar-container">Container</div>
+
+    <script type="text/babel">
+        // Run code directly after Babel processes the script.
+        console.log('RBC FINAL TEST: Script execution started.'); 
+
+        const renderError = (message) => {
+            const container = document.getElementById('calendar-container');
+            if (container) container.innerHTML = `<p style="color: red;">${message}</p>`;
+            console.error(message);
+        };
+
+        const { Calendar, dateFnsLocalizer } = window.ReactBigCalendar;
+        const { format, parse, startOfWeek, getDay, locales } = window.dateFns;
+        const enUSLocale = window.dateFns.locale && window.dateFns.locale.enUS; // Safely access locale
+
+        const localizer = dateFnsLocalizer({
+            format: format,
+            parse: parse,
+            startOfWeek: startOfWeek,
+            getDay: getDay,
+            locales: { 'en-US': enUSLocale },
+        });
+        console.log('RBC FINAL TEST: Localizer created.');
+
+        const App = () => {
+            const now = new Date();
+            const sampleEvents = [
+                {
+                    id: 0,
+                    title: 'Standalone Test Event',
+                    start: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 30, 0),
+                    end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0),
+                    allDay: false,
+                },
+            ];
+            console.log('RBC FINAL TEST: App component rendering...');
+            return (
+                <Calendar
+                    localizer={localizer}
+                    // events={sampleEvents}
+                    startAccessor="start"
+                    endAccessor="end"
+                    defaultView="week"
+                    defaultDate={now}
+                    style={{ height: '100%' }}
+                />
+            );
+        };
+
+        const container = document.getElementById('calendar-container');
+        container.innerHTML = ''; // Clear container before rendering
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+
+</body>
+</html> 

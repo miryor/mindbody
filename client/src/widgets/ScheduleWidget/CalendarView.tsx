@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Calendar, dateFnsLocalizer, EventProps } from 'react-big-calendar';
 import { format } from 'date-fns/format';
 import { parse } from 'date-fns/parse';
@@ -7,9 +7,6 @@ import { getDay } from 'date-fns/getDay';
 import { enUS } from 'date-fns/locale/en-US';
 import { fromZonedTime } from 'date-fns-tz';
 import { ScheduleItem } from './types';
-
-// Remove direct CSS import, as styles are injected by ShadowDomContainer
-// import 'react-big-calendar/lib/css/react-big-calendar.css';
 
 // Setup the localizer by providing the required date-fns functions
 const locales = {
@@ -27,6 +24,7 @@ interface CalendarViewProps {
     data: ScheduleItem[];
     userTimezone: string | null; // Keep user timezone prop for potential future use
     selectedDate: Date; // Add selectedDate prop
+    onNavigate: (newDate: Date, view: string) => void; // Add onNavigate prop callback
     // Add other props for event handlers (onSelectEvent, onNavigate, etc.) if needed
 }
 
@@ -52,7 +50,19 @@ const CustomEvent: React.FC<EventProps<CalendarEvent>> = ({ event }) => {
     );
 };
 
-const CalendarView: React.FC<CalendarViewProps> = ({ data, userTimezone, selectedDate }) => {
+const CalendarView: React.FC<CalendarViewProps> = ({ data, userTimezone, selectedDate, onNavigate }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (containerRef.current) {
+            console.log('CalendarView Container Dimensions on Mount:', {
+                width: containerRef.current.offsetWidth,
+                height: containerRef.current.offsetHeight,
+                clientWidth: containerRef.current.clientWidth,
+                clientHeight: containerRef.current.clientHeight,
+            });
+        }
+    }, []);
 
     // Map ScheduleItem data to the CalendarEvent format using fromZonedTime
     const events: CalendarEvent[] = data.reduce((acc: CalendarEvent[], item) => {
@@ -82,25 +92,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({ data, userTimezone, selecte
     console.log("User timezone in CalendarView:", userTimezone); // Log for debugging/future use
 
     return (
-        <div className="calendar-view" style={{ height: 600 }}> {/* Set a height for the calendar */}
-            {/* <h3>Calendar View</h3> */}
+        <div ref={containerRef} className="calendar-view" style={{ height: 600 }}> 
             <Calendar
                 localizer={localizer}
                 events={events}
                 startAccessor="start"
                 endAccessor="end"
-                style={{ height: '100%' }} // Make calendar fill the container height
-                views={['week', 'day']} // Limit views to week and day as requested
-                defaultView="week" // Set default view to week
-                date={selectedDate} // Control the displayed date
-                // Optional: Add onNavigate prop if you need to update selectedDate in parent
-                // onNavigate={(newDate) => console.log('Calendar navigated to:', newDate)}
-                // Optional: Use custom event component
+                style={{ height: '100%' }}
+                views={['week', 'day']} 
+                defaultView="week" 
+                date={selectedDate} 
+                onNavigate={onNavigate}
                 components={{
                     event: CustomEvent,
                 }}
-                // Optional: Event handlers
-                // onSelectEvent={event => alert(`Selected: ${event.title}`)}
             />
         </div>
     );

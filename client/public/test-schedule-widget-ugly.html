@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Schedule Widget (Ugly Styles)</title>
+    <style>
+        /* Absurd Global Styles to Test Isolation */
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif !important; /* Terrible font */
+            padding: 20px;
+            background-color: limegreen !important; /* Garish background */
+            color: yellow !important; /* Hard-to-read text */
+            border: 10px dotted hotpink !important; /* Hideous border */
+            text-transform: uppercase !important; /* Make everything shouty */
+        }
+        h1, h2, h3, h4, h5, h6 {
+            font-size: 4em !important; /* Huge headings */
+            color: fuchsia !important; 
+            text-shadow: 3px 3px 0px blue !important; /* Awful shadow */
+            letter-spacing: 0.2em !important;
+            font-family: 'Papyrus', fantasy !important; /* Another bad font */
+        }
+        p {
+            font-size: 20pt !important; /* Large paragraph text */
+            line-height: 1.0 !important; /* Cramped line height */
+            color: aqua !important;
+            background-color: navy !important;
+            border: 5px solid red !important;
+            padding: 1em !important;
+        }
+        button, input, select, textarea {
+            border: 5px dashed yellow !important;
+            background-color: orange !important;
+            color: black !important;
+            font-size: 18pt !important;
+            padding: 15px !important;
+            border-radius: 0 !important; /* No rounded corners */
+        }
+        div {
+            /* Try to break layout */
+            margin: 50px !important;
+            padding: 30px !important;
+            border: 8px groove purple !important;
+        }
+        /* Keep basic container style for reference, but it will be overridden */
+        #mindbody-schedule-widget { 
+            /* This might get overridden by the global div style above */
+            /* but the content INSIDE the shadow DOM should be safe */
+            border: 1px dashed #ccc; 
+            padding: 15px;
+            margin-top: 20px;
+            max-width: 800px; /* Example width */
+        }
+    </style>
+
+    <!-- Load React & ReactDOM BEFORE the widget script -->
+    <!-- Using unpkg CDN for React 18 -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+</head>
+<body>
+    <h1>Mindbody Schedule Widget Test Page (Ugly Styles)</h1>
+    <p>The schedule widget should appear below inside the dashed border. It should look NORMAL, unlike the rest of this page.</p>
+
+    <!-- Container for the widget -->
+    <div id="mindbody-schedule-widget"></div>
+
+    <!-- Load the widget embedding script (UMD version) AFTER React/ReactDOM -->
+    <script src="/mindbody-widgets.umd.js"></script>
+
+    <!--
+        Initialize the widget.
+        Uses the UMD global variable `MindbodyWidgets` and the `render` function.
+    -->
+    <script>
+        // Get today's date in YYYY-MM-DD format
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayString = `${yyyy}-${mm}-${dd}`;
+
+        if (typeof MindbodyWidgets !== 'undefined' && typeof MindbodyWidgets.render === 'function') {
+            MindbodyWidgets.render('ScheduleWidget', {
+                targetElementId: 'mindbody-schedule-widget',
+                initialStartDate: todayString,
+                // Add other config props if needed
+                // defaultView: 'list',
+                // siteId: '-99'
+            });
+        } else {
+            console.error('Could not find MindbodyWidgets.render function. Check script load order and build output.');
+            document.getElementById('mindbody-schedule-widget').innerHTML =
+                '<p style="color: red;">Error: Could not load the widget.</p>';
+        }
+    </script>
+
+</body>
+</html> 

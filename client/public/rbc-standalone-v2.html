@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RBC Standalone Test v2</title>
+
+    <!-- Dependencies via CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@3.6.0/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@3.6.0/locale/cdn.min.js"></script>
+    <script src="https://unpkg.com/react-big-calendar@latest/dist/react-big-calendar.js"></script> <!-- Dev build -->
+    <link rel="stylesheet" href="https://unpkg.com/react-big-calendar@latest/lib/css/react-big-calendar.css">
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        #calendar {
+            height: 650px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>RBC Standalone Test v2</h1>
+    <p>Testing RBC with CDN dependencies and Babel (no DOMContentLoaded wrapper in script).</p>
+    <div id="calendar">Loading calendar...</div>
+
+    <script type="text/babel">
+        console.log("RBC v2: Babel script started.");
+
+        // Function to display errors
+        const showError = (msg) => {
+            console.error(msg);
+            const el = document.getElementById("calendar");
+            if (el) el.innerHTML = `<p style="color:red;">Error: ${msg}</p>`;
+        };
+
+        // --- Dependency Checks ---
+        if (typeof React === 'undefined') {
+            showError("React global not found.");
+        } else if (typeof ReactDOM === 'undefined') {
+            showError("ReactDOM global not found.");
+        } else if (typeof ReactBigCalendar === 'undefined') { 
+            showError("ReactBigCalendar global not found.");
+        } else if (typeof dateFns === 'undefined' || typeof dateFns.format !== 'function' || typeof dateFns.startOfWeek !== 'function' || typeof dateFns.locale === 'undefined' || typeof dateFns.locale.enUS === 'undefined') {
+            showError("dateFns global or required functions/locale not found.");
+        } else {
+            console.log("RBC v2: All prerequisites seem loaded.");
+
+            // --- Setup --- 
+            const { Calendar, dateFnsLocalizer } = ReactBigCalendar;
+            const { format, parse, startOfWeek, getDay, locale } = dateFns;
+            const enUS = locale.enUS;
+
+            const localizer = dateFnsLocalizer({
+                format,
+                parse,
+                startOfWeek,
+                getDay,
+                locales: { 'en-US': enUS },
+            });
+            console.log("RBC v2: Localizer created.");
+
+            // --- React Component --- 
+            const MyCalendar = () => {
+                const now = new Date();
+                const events = [
+                    {
+                        id: 1,
+                        title: 'Test Event 10am-12pm',
+                        start: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 10, 0, 0),
+                        end: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0),
+                    }
+                ];
+                console.log("RBC v2: MyCalendar component rendering.");
+                return (
+                    <Calendar
+                        localizer={localizer}
+                        events={events}
+                        startAccessor="start"
+                        endAccessor="end"
+                        defaultDate={now}
+                        defaultView="week"
+                        style={{ height: '100%' }}
+                    />
+                );
+            };
+
+            // --- Render --- 
+            const container = document.getElementById('calendar');
+            if (container) {
+                 console.log("RBC v2: Container found, attempting render.");
+                try {
+                    const root = ReactDOM.createRoot(container);
+                    root.render(<MyCalendar />);
+                    console.log("RBC v2: Render command issued.");
+                } catch(e) {
+                    showError("Error during React render: " + e.message);
+                }
+            } else {
+                showError("Target container #calendar not found.");
+            }
+        }
+
+    </script>
+
+</body>
+</html> 

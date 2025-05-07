@@ -4,9 +4,10 @@ import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+// REMOVE DatePicker related MUI imports
+// import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'; 
+// import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+// import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 // Import necessary components (e.g., for Calendar, List views) when created
 import CalendarView from './CalendarView';
 // Import the new ListView component
@@ -75,7 +76,7 @@ const parseDateProp = (dateString?: string): Date => {
 };
 
 const ScheduleWidget: React.FC<ScheduleWidgetProps> = (props) => {
-    const { defaultView = 'list', siteId, initialStartDate } = props.config || props;
+    const { defaultView = 'calendar', siteId, initialStartDate } = props.config || props;
 
     const [viewMode, setViewMode] = useState<ViewMode>(defaultView);
     const [scheduleData, setScheduleData] = useState<ScheduleItem[]>([]);
@@ -85,6 +86,7 @@ const ScheduleWidget: React.FC<ScheduleWidgetProps> = (props) => {
     const [locationsLoading, setLocationsLoading] = useState<boolean>(true);
     const [locationsError, setLocationsError] = useState<string | null>(null);
     const [userTimezone, setUserTimezone] = useState<string | null>(null);
+    // selectedDate will now also be controlled by CalendarView's onNavigate
     const [selectedDate, setSelectedDate] = useState<Date>(() => {
         const initial = parseDateProp(initialStartDate);
         return startOfDay(initial) >= startOfDay(new Date()) ? initial : new Date();
@@ -231,15 +233,16 @@ const ScheduleWidget: React.FC<ScheduleWidgetProps> = (props) => {
         }
     };
 
-    // Handler for date picker change
-    const handleDateChange = (newValue: Date | null) => {
-        if (newValue) {
-            const today = startOfDay(new Date());
-            if (startOfDay(newValue) >= today) {
-                 setSelectedDate(newValue);
-            } else {
-                console.warn("Cannot select a past date.");
-            }
+    // Handler for when react-big-calendar navigates
+    const handleCalendarNavigate = (newDate: Date) => {
+        // Ensure the new date is not in the past (react-big-calendar might allow this)
+        const today = startOfDay(new Date());
+        if (startOfDay(newDate) >= today) {
+            setSelectedDate(newDate);
+        } else {
+            // If navigation tries to go to the past, force it back to today (or selectedDate if it was future)
+            setSelectedDate(startOfDay(selectedDate) >= today ? selectedDate : today);
+            console.warn("Calendar navigation tried to go to a past date. Resetting.");
         }
     };
 
@@ -247,66 +250,46 @@ const ScheduleWidget: React.FC<ScheduleWidgetProps> = (props) => {
     if (locationsLoading) return <p>Loading location data...</p>;
     if (locationsError) return <p style={{ color: 'red' }}>Error loading locations: {locationsError}</p>; 
 
-    // Today constant for disabling past dates in picker
-    const today = new Date();
-
     return (
-        // Wrap controls needing date context in LocalizationProvider
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <div className="schedule-widget">
-                {/* Header and Controls */}            
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
-                    <Typography variant="h5" component="h2" sx={{ mr: 2 }}>Schedule</Typography>
-                    
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                         {/* View Mode Toggle */}            
-                         <ToggleButtonGroup
-                            value={viewMode}
-                            exclusive
-                            onChange={handleViewChange}
-                            aria-label="View mode"
-                            size="small"
-                        >
-                            <ToggleButton value="list" aria-label="List view">
-                                List
-                            </ToggleButton>
-                            <ToggleButton value="calendar" aria-label="Calendar view">
-                                Calendar
-                            </ToggleButton>
-                        </ToggleButtonGroup>
+        // No longer need LocalizationProvider if DatePicker is removed
+        <div className="schedule-widget">
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+                <Typography variant="h5" component="h2" sx={{ mr: 2 }}>Schedule</Typography>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <ToggleButtonGroup
+                        value={viewMode}
+                        exclusive
+                        onChange={handleViewChange}
+                        aria-label="View mode"
+                        size="small"
+                    >
+                        <ToggleButton value="list" aria-label="List view">List</ToggleButton>
+                        <ToggleButton value="calendar" aria-label="Calendar view">Calendar</ToggleButton>
+                    </ToggleButtonGroup>
+                    {/* DatePicker component removed */}
+                </Box>
+            </Box>
 
-                        {/* Date Picker */}            
-                        <DatePicker
-                            label="Select Date"
-                            value={selectedDate}
-                            onChange={handleDateChange}
-                            minDate={today} // Disable past dates
-                            // Use slotProps for TextField size if needed
-                            // slotProps={{ textField: { size: 'small' } }}
-                         />
-                    </Box>
-                 </Box>
+            {userTimezone && <p style={{fontSize: '0.8em', color: 'grey', marginTop: '-8px', marginBottom: '8px'}}>Detected Timezone: {userTimezone}</p>}
+            
+            {isLoading && <p>Loading schedule...</p>}
+            {error && <p style={{ color: 'red' }}>{error}</p>}
 
-                {/* Display detected user timezone (remains the same) */}
-                {userTimezone && <p style={{fontSize: '0.8em', color: 'grey', marginTop: '-8px', marginBottom: '8px'}}>Detected Timezone: {userTimezone}</p>}
-                
-                {/* Schedule Loading/Error state (remains the same) */}
-                {isLoading && <p>Loading schedule...</p>}
-                {error && <p style={{ color: 'red' }}>{error}</p>}
-
-                {/* View Container */}            
-                {!isLoading && !error && (
-                    <div className="view-container">
-                        {viewMode === 'list' ? (
-                            <ListView data={scheduleData} userTimezone={userTimezone} />
-                        ) : (
-                            // Pass selectedDate to CalendarView to potentially control its displayed date
-                            <CalendarView data={scheduleData} userTimezone={userTimezone} selectedDate={selectedDate} /> 
-                        )}
-                    </div>
-                )}
-            </div>
-        </LocalizationProvider>
+            {!isLoading && !error && (
+                <div className="view-container">
+                    {viewMode === 'list' ? (
+                        <ListView data={scheduleData} userTimezone={userTimezone} />
+                    ) : (
+                        <CalendarView 
+                            data={scheduleData} 
+                            userTimezone={userTimezone} 
+                            selectedDate={selectedDate} 
+                            onNavigate={handleCalendarNavigate} // Pass the handler
+                        /> 
+                    )}
+                </div>
+            )}
+        </div>
     );
 };
 
